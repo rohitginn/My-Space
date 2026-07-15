@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
 
 const navItems = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Focus Room', href: '/focus', icon: Target },
   { name: 'Canvas', href: '/canvas', icon: Palette },
   { name: 'Projects', href: '/projects', icon: Layers },
@@ -22,7 +22,7 @@ export default function Sidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  if (pathname === '/login' || pathname === '/register') {
+  if (pathname === '/' || pathname === '/login' || pathname === '/register') {
     return null;
   }
 

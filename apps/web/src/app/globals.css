@@ -66,6 +66,58 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.landing-image-frame {
+  width: min(100%, 760px);
+  border: 1px solid rgb(240 237 229 / 0.14);
+  box-shadow: 22px 28px 0 rgb(141 153 113 / 0.16);
+}
+
+@keyframes landing-hero-drift {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate3d(0, 72px, 0) rotate(-2.5deg);
+  }
+}
+
+@keyframes landing-tools-settle {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-48px, 0, 0);
+  }
+}
+
+@supports (animation-timeline: scroll()) {
+  .landing-scroll-image {
+    animation: landing-hero-drift linear both;
+    animation-range: 0% 35%;
+    animation-timeline: scroll(root);
+  }
+
+  .landing-tools-motion {
+    animation: landing-tools-settle linear both;
+    animation-range: entry 20% cover 70%;
+    animation-timeline: view();
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .landing-scroll-image,
+  .landing-tools-motion {
+    animation: none;
+    transform: none;
+  }
+}
+
 /* Glassmorphism Utilities */
 .glass {
   background-color: var(--surface-glass);

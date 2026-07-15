@@ -23,6 +23,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const publicRoutes = new Set(['/', '/login', '/register']);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -35,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('accessToken');
       if (!token) {
         setIsLoading(false);
-        if (pathname !== '/login' && pathname !== '/register') {
+        if (!publicRoutes.has(pathname)) {
           router.push('/login');
         }
         return;
@@ -46,9 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.success) {
           setUser(data.data.user);
         }
-      } catch (error) {
+      } catch {
         localStorage.removeItem('accessToken');
-        if (pathname !== '/login' && pathname !== '/register') {
+        if (!publicRoutes.has(pathname)) {
           router.push('/login');
         }
       } finally {
@@ -62,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = (token: string, userData: User) => {
     localStorage.setItem('accessToken', token);
     setUser(userData);
-    router.push('/');
+    router.push('/dashboard');
   };
 
   const logout = async () => {
