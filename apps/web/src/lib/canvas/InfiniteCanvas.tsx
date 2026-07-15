@@ -11,7 +11,7 @@ import type {
   HandlePosition, ToolType,
 } from './types';
 import {
-  screenToWorld, getCameraTransform, zoomAtPoint,
+  screenToWorld, worldToScreen, getCameraTransform, zoomAtPoint,
   isPointInRotatedShape, simplifyPath, pointsToSmoothPath,
   pointsToRawPath, generateId, getShapeBounds,
 } from './math';
@@ -44,7 +44,6 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
   // For text editing overlay
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [textInputValue, setTextInputValue] = useState('');
-  const [textInputPos, setTextInputPos] = useState<{ x: number; y: number } | null>(null);
   const textInputRef = useRef<HTMLTextAreaElement>(null);
 
   // ── Helper: get container rect ─────────────────────────────
@@ -209,13 +208,8 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         onChanged?.();
 
         // Open text editor
-        const screenPt = {
-          x: e.clientX,
-          y: e.clientY,
-        };
         setEditingTextId(shape.id);
         setTextInputValue('');
-        setTextInputPos(screenPt);
         setTimeout(() => textInputRef.current?.focus(), 50);
         return;
       }
@@ -516,7 +510,6 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         if (shape.type === 'text' && isPointInRotatedShape(worldPt, shape)) {
           setEditingTextId(shape.id);
           setTextInputValue((shape as TextShape).text);
-          setTextInputPos({ x: e.clientX, y: e.clientY });
           setTimeout(() => textInputRef.current?.focus(), 50);
           return;
         }
@@ -536,7 +529,6 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
       }
       setEditingTextId(null);
       setTextInputValue('');
-      setTextInputPos(null);
       onChanged?.();
     }
   }, [editingTextId, textInputValue, actions, onChanged]);
@@ -618,7 +610,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
       </svg>
 
       {/* Text editing overlay (HTML on top of SVG) */}
-      {editingTextId && textInputPos && (
+      {editingTextId && state.shapes[editingTextId] && (
         <textarea
           ref={textInputRef}
           value={textInputValue}
@@ -629,15 +621,19 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
               commitTextEdit();
             }
           }}
-          className="absolute z-40 bg-transparent text-foreground border border-accent-blue/50 rounded-lg px-2 py-1 outline-none resize-none"
+          className="absolute z-40 bg-transparent text-foreground border border-accent-blue/50 rounded-lg outline-none resize-none"
           style={{
-            left: textInputPos.x - 4,
-            top: textInputPos.y - 12,
-            fontSize: (state.shapes[editingTextId] as TextShape)?.fontSize || state.toolStyle.fontSize,
+            left: worldToScreen(state.shapes[editingTextId].x, state.shapes[editingTextId].y, state.camera).x - 2,
+            top: worldToScreen(state.shapes[editingTextId].x, state.shapes[editingTextId].y, state.camera).y - 2,
+            fontSize: ((state.shapes[editingTextId] as TextShape).fontSize || state.toolStyle.fontSize) * state.camera.zoom,
             fontFamily: 'Inter, system-ui, sans-serif',
-            color: state.shapes[editingTextId]?.color || state.toolStyle.color,
+            color: state.shapes[editingTextId].color || state.toolStyle.color,
             minWidth: 120,
             minHeight: 30,
+            transform: state.shapes[editingTextId].rotation ? `rotate(${state.shapes[editingTextId].rotation}deg)` : undefined,
+            transformOrigin: 'top left',
+            padding: 0,
+            lineHeight: 1.2
           }}
         />
       )}
@@ -647,7 +643,16 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         activeTool={state.activeTool}
         toolStyle={state.toolStyle}
         onToolChange={actions.setTool}
-        onStyleChange={actions.setToolStyle}
+        onStyleChange={(style) => {
+          if (state.selectedIds.length > 0) {
+            engine.pushHistory();
+            for (const id of state.selectedIds) {
+               actions.updateShape(id, style as Partial<CanvasShape>);
+            }
+          }
+          actions.setToolStyle(style);
+          onChanged?.();
+        }}
         onUndo={() => { actions.undo(); onChanged?.(); }}
         onRedo={() => { actions.redo(); onChanged?.(); }}
         onDelete={() => {
