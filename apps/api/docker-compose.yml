@@ -1,0 +1,26 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: myspace_db
+    ports:
+      - '5433:5432'
+    environment:
+      POSTGRES_USER: myspace_user
+      POSTGRES_PASSWORD: myspace_pass
+      POSTGRES_DB: myspace_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U myspace_user -d myspace_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: myspace_redis
+    ports:
+      - '6379:6379'
+
+volumes:
+  pgdata:
