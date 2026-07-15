@@ -22,6 +22,7 @@ import { pomodoroRoutes } from './modules/pomodoro/pomodoro.routes.js';
 import { searchRoutes } from './modules/search/search.routes.js';
 import { todosRoutes } from './modules/todos/todos.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
+import { drawingsRoutes } from './modules/drawings/drawings.routes.js';
 
 export function createApp() {
   const app = express();
@@ -55,6 +56,7 @@ export function createApp() {
   app.use('/api/expenses', authenticate, expensesRoutes);
   app.use('/api/pomodoro', authenticate, pomodoroRoutes);
   app.use('/api/search', authenticate, searchRoutes);
+  app.use('/api/drawings', authenticate, drawingsRoutes);
 
   app.all('*', (_req, res) => {
     res.status(404).json({ success: false, error: { code: 'ROUTE_NOT_FOUND', message: 'Route not found' } });

@@ -9,3 +9,4 @@ export * from './pomodoroSessions.js';
 export * from './tags.js';
 export * from './todos.js';
 export * from './users.js';
+export * from './drawings.js';

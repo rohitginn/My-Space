@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, StickyNote, CheckSquare, Layers, Calendar, Settings, User, Target, Activity } from 'lucide-react';
+import { LayoutDashboard, StickyNote, CheckSquare, Layers, Calendar, Settings, User, Target, Activity, Palette } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
 
 const navItems = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Focus Room', href: '/focus', icon: Target },
+  { name: 'Canvas', href: '/canvas', icon: Palette },
   { name: 'Projects', href: '/projects', icon: Layers },
   { name: 'Calendar', href: '/calendar', icon: Calendar },
   { name: 'Notes', href: '/notes', icon: StickyNote },
