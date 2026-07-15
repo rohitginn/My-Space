@@ -29,6 +29,12 @@ export type ShapeType = 'pen' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'te
 /** All available tools (includes non-shape tools) */
 export type ToolType = ShapeType | 'select' | 'pan';
 
+/** Stroke rendering style */
+export type StrokeStyleType = 'solid' | 'dashed' | 'dotted';
+
+/** Fill rendering style (roughjs compatible) */
+export type FillStyleType = 'none' | 'hachure' | 'solid' | 'cross-hatch';
+
 /** Base shape interface — every shape on the canvas extends this */
 export interface BaseShape {
   id: string;
@@ -40,7 +46,9 @@ export interface BaseShape {
   rotation: number;
   color: string;
   strokeWidth: number;
+  strokeStyle: StrokeStyleType;
   fill: string;
+  fillStyle: FillStyleType;
   opacity: number;
   zIndex: number;
 }
@@ -98,29 +106,16 @@ export interface Command {
 }
 
 /** Resize handle positions */
-export type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
+export type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'rotation';
 
 /** Style settings for the current drawing tool */
 export interface ToolStyle {
   color: string;
   strokeWidth: number;
+  strokeStyle: StrokeStyleType;
   fill: string;
+  fillStyle: FillStyleType;
   opacity: number;
   fontSize: number;
-}
-
-/** The complete canvas engine state */
-export interface CanvasState {
-  camera: Camera;
-  shapes: Record<string, CanvasShape>;
-  selectedIds: Set<string>;
-  activeTool: ToolType;
-  toolStyle: ToolStyle;
-  isDrawing: boolean;
-  isPanning: boolean;
-  isDragging: boolean;
-  isResizing: boolean;
-  activeHandle: HandlePosition | null;
-  history: Command[];
-  historyIndex: number;
+  borderRadius: number;
 }

@@ -12,7 +12,7 @@ import type {
 } from './types';
 import {
   screenToWorld, getCameraTransform, zoomAtPoint,
-  isPointInShape, simplifyPath, pointsToSmoothPath,
+  isPointInRotatedShape, simplifyPath, pointsToSmoothPath,
   pointsToRawPath, generateId, getShapeBounds,
 } from './math';
 import { ShapeRenderer } from './ShapeRenderer';
@@ -72,7 +72,9 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         rotation: 0,
         color: state.toolStyle.color,
         strokeWidth: state.toolStyle.strokeWidth,
+        strokeStyle: state.toolStyle.strokeStyle,
         fill: state.toolStyle.fill,
+        fillStyle: state.toolStyle.fillStyle,
         opacity: state.toolStyle.opacity,
         zIndex: Object.keys(state.shapes).length,
       };
@@ -81,7 +83,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         case 'pen':
           return { ...base, type: 'pen', points: [worldPt], pathData: `M ${worldPt.x} ${worldPt.y}` } as PenShape;
         case 'rectangle':
-          return { ...base, type: 'rectangle', borderRadius: 0 } as RectangleShape;
+          return { ...base, type: 'rectangle', borderRadius: state.toolStyle.borderRadius } as RectangleShape;
         case 'ellipse':
           return { ...base, type: 'ellipse' } as EllipseShape;
         case 'line':
@@ -99,7 +101,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
             height: 30,
           } as TextShape;
         default:
-          return { ...base, type: 'rectangle', borderRadius: 0 } as RectangleShape;
+          return { ...base, type: 'rectangle', borderRadius: state.toolStyle.borderRadius } as RectangleShape;
       }
     },
     [state.toolStyle, state.shapes]
@@ -168,7 +170,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         a: 'arrow',
         t: 'text',
       };
-      if (!e.metaKey && !e.ctrlKey && !e.altKey && toolShortcuts[e.key]) {
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && toolShortcuts[e.key] && !editingTextId) {
         actions.setTool(toolShortcuts[e.key]);
       }
     };
@@ -185,7 +187,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
       const worldPt = getWorldPoint(e);
       const tool = state.activeTool;
 
-      // Pan tool or middle mouse or space+drag
+      // Pan tool
       if (tool === 'pan') {
         actions.setPanning(true);
         panStartRef.current = {
@@ -242,7 +244,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         let hitShape: CanvasShape | null = null;
 
         for (const shape of sortedShapes) {
-          if (isPointInShape(worldPt, shape)) {
+          if (isPointInRotatedShape(worldPt, shape)) {
             hitShape = shape;
             break;
           }
@@ -337,8 +339,8 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         return;
       }
 
-      // Resizing
-      if (state.isResizing && resizeStartRef.current) {
+      // Resizing & Rotating
+      if ((state.isResizing || state.isRotating) && resizeStartRef.current) {
         const { handle, startMouse, originalShapes } = resizeStartRef.current;
         const dx = worldPt.x - startMouse.x;
         const dy = worldPt.y - startMouse.y;
@@ -347,7 +349,23 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
           const orig = originalShapes[id];
           if (!orig) continue;
 
-          const bounds = getShapeBounds(orig);
+          if (handle === 'rotation') {
+             // Calculate center of original shape
+             let cx = orig.x + orig.width / 2;
+             let cy = orig.y + orig.height / 2;
+             if (orig.type === 'pen') {
+               const bounds = getShapeBounds(orig);
+               cx = (bounds.minX + bounds.maxX) / 2;
+               cy = (bounds.minY + bounds.maxY) / 2;
+             }
+             
+             // Calculate angle between shape center and mouse position
+             // We add 90 degrees (PI/2) because our handle is visually above the shape (-y direction)
+             let angle = Math.atan2(worldPt.y - cy, worldPt.x - cx) * (180 / Math.PI) + 90;
+             actions.updateShape(id, { rotation: angle });
+             continue;
+          }
+
           let newX = orig.x;
           let newY = orig.y;
           let newW = orig.width;
@@ -417,9 +435,10 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         return;
       }
 
-      // Finish resizing
-      if (state.isResizing) {
+      // Finish resizing / rotating
+      if (state.isResizing || state.isRotating) {
         actions.setResizing(false);
+        actions.setRotating(false);
         resizeStartRef.current = null;
         onChanged?.();
         return;
@@ -454,7 +473,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
     [state.activeTool, state.selectedIds, getWorldPoint, actions, engine]
   );
 
-  // ── Handle Resize ──────────────────────────────────────────
+  // ── Handle Resize or Rotate ────────────────────────────────
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent, handle: HandlePosition) => {
       e.stopPropagation();
@@ -475,7 +494,12 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         originalShapes,
       };
 
-      actions.setResizing(true, handle);
+      if (handle === 'rotation') {
+        actions.setRotating(true);
+      } else {
+        actions.setResizing(true, handle);
+      }
+      
       (e.target as Element)?.setPointerCapture?.(e.pointerId);
     },
     [state.selectedIds, state.shapes, getWorldPoint, actions, engine]
@@ -489,7 +513,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
 
       const sortedShapes = Object.values(state.shapes).sort((a, b) => b.zIndex - a.zIndex);
       for (const shape of sortedShapes) {
-        if (shape.type === 'text' && isPointInShape(worldPt, shape)) {
+        if (shape.type === 'text' && isPointInRotatedShape(worldPt, shape)) {
           setEditingTextId(shape.id);
           setTextInputValue((shape as TextShape).text);
           setTextInputPos({ x: e.clientX, y: e.clientY });
@@ -609,9 +633,9 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
           style={{
             left: textInputPos.x - 4,
             top: textInputPos.y - 12,
-            fontSize: state.toolStyle.fontSize,
+            fontSize: (state.shapes[editingTextId] as TextShape)?.fontSize || state.toolStyle.fontSize,
             fontFamily: 'Inter, system-ui, sans-serif',
-            color: state.toolStyle.color,
+            color: state.shapes[editingTextId]?.color || state.toolStyle.color,
             minWidth: 120,
             minHeight: 30,
           }}
@@ -630,6 +654,20 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
           if (state.selectedIds.length > 0) {
             engine.pushHistory();
             actions.deleteShapes(state.selectedIds);
+            onChanged?.();
+          }
+        }}
+        onBringToFront={() => {
+          if (state.selectedIds.length > 0) {
+            engine.pushHistory();
+            actions.bringToFront(state.selectedIds);
+            onChanged?.();
+          }
+        }}
+        onSendToBack={() => {
+          if (state.selectedIds.length > 0) {
+            engine.pushHistory();
+            actions.sendToBack(state.selectedIds);
             onChanged?.();
           }
         }}

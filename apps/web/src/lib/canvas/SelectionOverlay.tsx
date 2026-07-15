@@ -1,5 +1,5 @@
 // ============================================================
-// Custom Canvas Engine - Selection Overlay (Bounding Box + Handles)
+// Custom Canvas Engine - Selection Overlay with Rotation Handle
 // ============================================================
 
 import React from 'react';
@@ -13,6 +13,7 @@ interface SelectionOverlayProps {
 }
 
 const HANDLE_SIZE = 8;
+const ROTATION_HANDLE_OFFSET = 30;
 
 const HANDLE_POSITIONS: { pos: HandlePosition; getXY: (b: AABB) => { x: number; y: number } }[] = [
   { pos: 'nw', getXY: (b) => ({ x: b.minX, y: b.minY }) },
@@ -25,7 +26,7 @@ const HANDLE_POSITIONS: { pos: HandlePosition; getXY: (b: AABB) => { x: number; 
   { pos: 'w', getXY: (b) => ({ x: b.minX, y: (b.minY + b.maxY) / 2 }) },
 ];
 
-const CURSOR_MAP: Record<HandlePosition, string> = {
+const CURSOR_MAP: Record<string, string> = {
   nw: 'nwse-resize',
   n: 'ns-resize',
   ne: 'nesw-resize',
@@ -34,6 +35,7 @@ const CURSOR_MAP: Record<HandlePosition, string> = {
   s: 'ns-resize',
   sw: 'nesw-resize',
   w: 'ew-resize',
+  rotation: 'grab',
 };
 
 export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverlayProps) {
@@ -53,6 +55,7 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
   const w = maxX - minX;
   const h = maxY - minY;
   const half = HANDLE_SIZE / 2;
+  const cx = (minX + maxX) / 2;
 
   return (
     <g className="selection-overlay">
@@ -68,6 +71,37 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
         strokeDasharray="6 3"
         pointerEvents="none"
         style={{ vectorEffect: 'non-scaling-stroke' }}
+      />
+
+      {/* Rotation handle connector line */}
+      <line
+        x1={cx}
+        y1={minY}
+        x2={cx}
+        y2={minY - ROTATION_HANDLE_OFFSET}
+        stroke="#0ea5e9"
+        strokeWidth={1}
+        strokeDasharray="3 2"
+        pointerEvents="none"
+        style={{ vectorEffect: 'non-scaling-stroke' }}
+      />
+
+      {/* Rotation handle circle */}
+      <circle
+        cx={cx}
+        cy={minY - ROTATION_HANDLE_OFFSET}
+        r={5}
+        fill="#ffffff"
+        stroke="#0ea5e9"
+        strokeWidth={1.5}
+        style={{
+          cursor: 'grab',
+          vectorEffect: 'non-scaling-stroke',
+        }}
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          onHandlePointerDown(e, 'rotation');
+        }}
       />
 
       {/* Resize handles */}

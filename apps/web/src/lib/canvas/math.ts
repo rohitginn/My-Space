@@ -296,3 +296,55 @@ export function generateId(): string {
 export function distance(a: Point, b: Point): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
+
+// ── Rotation helpers ────────────────────────────────────────
+
+/** Rotate a point around a center by angleDegrees */
+export function rotatePoint(point: Point, center: Point, angleDegrees: number): Point {
+  const rad = (angleDegrees * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const dx = point.x - center.x;
+  const dy = point.y - center.y;
+  return {
+    x: dx * cos - dy * sin + center.x,
+    y: dx * sin + dy * cos + center.y,
+  };
+}
+
+/** Get the center point of a shape */
+export function getShapeCenter(shape: CanvasShape): Point {
+  if (shape.type === 'pen') {
+    const bounds = getShapeBounds(shape);
+    return { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
+  }
+  return {
+    x: shape.x + shape.width / 2,
+    y: shape.y + shape.height / 2,
+  };
+}
+
+/**
+ * Hit-test a point against a rotated shape.
+ * Rotates the test point by -rotation around the shape center first,
+ * then performs a normal (un-rotated) hit test.
+ */
+export function isPointInRotatedShape(point: Point, shape: CanvasShape, padding: number = 4): boolean {
+  if (shape.rotation === 0) {
+    return isPointInShape(point, shape, padding);
+  }
+
+  const center = getShapeCenter(shape);
+  // Rotate the click point backward
+  const unrotated = rotatePoint(point, center, -shape.rotation);
+  return isPointInShape(unrotated, shape, padding);
+}
+
+/** Calculate the SVG stroke-dasharray value from a strokeStyle type */
+export function getStrokeDashArray(strokeStyle: string): string | undefined {
+  switch (strokeStyle) {
+    case 'dashed': return '8 4';
+    case 'dotted': return '2 4';
+    default: return undefined;
+  }
+}

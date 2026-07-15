@@ -5,7 +5,7 @@
 import { useReducer, useCallback, useRef } from 'react';
 import type {
   Camera, CanvasShape, ToolType, ToolStyle,
-  CanvasDocument, Command, HandlePosition, Point,
+  CanvasDocument, HandlePosition,
 } from './types';
 
 // ── State ───────────────────────────────────────────────────
@@ -20,15 +20,19 @@ export interface CanvasEngineState {
   isPanning: boolean;
   isDragging: boolean;
   isResizing: boolean;
+  isRotating: boolean;
   activeHandle: HandlePosition | null;
 }
 
 const DEFAULT_TOOL_STYLE: ToolStyle = {
   color: '#0ea5e9',
   strokeWidth: 2,
+  strokeStyle: 'solid',
   fill: 'transparent',
+  fillStyle: 'none',
   opacity: 1,
   fontSize: 16,
+  borderRadius: 0,
 };
 
 const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
@@ -44,6 +48,7 @@ function createInitialState(doc?: CanvasDocument): CanvasEngineState {
     isPanning: false,
     isDragging: false,
     isResizing: false,
+    isRotating: false,
     activeHandle: null,
   };
 }
@@ -62,7 +67,10 @@ type Action =
   | { type: 'SET_PANNING'; value: boolean }
   | { type: 'SET_DRAGGING'; value: boolean }
   | { type: 'SET_RESIZING'; value: boolean; handle?: HandlePosition | null }
+  | { type: 'SET_ROTATING'; value: boolean }
   | { type: 'MOVE_SHAPES'; ids: string[]; dx: number; dy: number }
+  | { type: 'BRING_TO_FRONT'; ids: string[] }
+  | { type: 'SEND_TO_BACK'; ids: string[] }
   | { type: 'LOAD_DOCUMENT'; doc: CanvasDocument }
   | { type: 'RESTORE_SHAPES'; shapes: Record<string, CanvasShape> };
 
@@ -118,12 +126,43 @@ function canvasReducer(state: CanvasEngineState, action: Action): CanvasEngineSt
     case 'SET_RESIZING':
       return { ...state, isResizing: action.value, activeHandle: action.handle ?? null };
 
+    case 'SET_ROTATING':
+      return { ...state, isRotating: action.value };
+
     case 'MOVE_SHAPES': {
       const newShapes = { ...state.shapes };
       for (const id of action.ids) {
         const shape = newShapes[id];
         if (shape) {
           newShapes[id] = { ...shape, x: shape.x + action.dx, y: shape.y + action.dy } as CanvasShape;
+        }
+      }
+      return { ...state, shapes: newShapes };
+    }
+
+    case 'BRING_TO_FRONT': {
+      const allShapes = Object.values(state.shapes);
+      const maxZ = allShapes.reduce((max, s) => Math.max(max, s.zIndex), 0);
+      const newShapes = { ...state.shapes };
+      let offset = 1;
+      for (const id of action.ids) {
+        if (newShapes[id]) {
+          newShapes[id] = { ...newShapes[id], zIndex: maxZ + offset } as CanvasShape;
+          offset++;
+        }
+      }
+      return { ...state, shapes: newShapes };
+    }
+
+    case 'SEND_TO_BACK': {
+      const allShapes = Object.values(state.shapes);
+      const minZ = allShapes.reduce((min, s) => Math.min(min, s.zIndex), 0);
+      const newShapes = { ...state.shapes };
+      let offset = 1;
+      for (const id of action.ids) {
+        if (newShapes[id]) {
+          newShapes[id] = { ...newShapes[id], zIndex: minZ - offset } as CanvasShape;
+          offset++;
         }
       }
       return { ...state, shapes: newShapes };
@@ -156,12 +195,10 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
 
   const pushHistory = useCallback(() => {
     const snapshot = JSON.parse(JSON.stringify(state.shapes));
-    // Discard any "future" history after the current index
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push({ shapes: snapshot });
     historyIndexRef.current = historyRef.current.length - 1;
 
-    // Limit history to 100 entries
     if (historyRef.current.length > 100) {
       historyRef.current.shift();
       historyIndexRef.current--;
@@ -198,7 +235,10 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
   const setPanning = useCallback((v: boolean) => dispatch({ type: 'SET_PANNING', value: v }), []);
   const setDragging = useCallback((v: boolean) => dispatch({ type: 'SET_DRAGGING', value: v }), []);
   const setResizing = useCallback((v: boolean, handle?: HandlePosition | null) => dispatch({ type: 'SET_RESIZING', value: v, handle }), []);
+  const setRotating = useCallback((v: boolean) => dispatch({ type: 'SET_ROTATING', value: v }), []);
   const moveShapes = useCallback((ids: string[], dx: number, dy: number) => dispatch({ type: 'MOVE_SHAPES', ids, dx, dy }), []);
+  const bringToFront = useCallback((ids: string[]) => dispatch({ type: 'BRING_TO_FRONT', ids }), []);
+  const sendToBack = useCallback((ids: string[]) => dispatch({ type: 'SEND_TO_BACK', ids }), []);
   const loadDocument = useCallback((doc: CanvasDocument) => dispatch({ type: 'LOAD_DOCUMENT', doc }), []);
 
   /** Get the current document state for serialization/autosave */
@@ -209,28 +249,24 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
   return {
     state,
     dispatch,
-    // Camera
     setCamera,
-    // Tools
     setTool,
     setToolStyle,
-    // Shapes
     addShape,
     updateShape,
     deleteShapes,
     moveShapes,
-    // Selection
+    bringToFront,
+    sendToBack,
     setSelected,
-    // Interaction states
     setDrawing,
     setPanning,
     setDragging,
     setResizing,
-    // History
+    setRotating,
     pushHistory,
     undo,
     redo,
-    // Document I/O
     loadDocument,
     getDocument,
   };
