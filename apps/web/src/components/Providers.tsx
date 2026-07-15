@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactNode, useState } from 'react';
 import { AuthProvider } from './AuthProvider';
 import { ThemeProvider } from 'next-themes';
+import { DialogProvider } from './DialogProvider';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -19,7 +20,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          {children}
+          <DialogProvider>
+            {children}
+          </DialogProvider>
         </AuthProvider>
       </QueryClientProvider>
     </ThemeProvider>

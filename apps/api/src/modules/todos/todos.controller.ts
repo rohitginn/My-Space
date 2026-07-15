@@ -35,3 +35,9 @@ export const addSubtask = asyncHandler(async (req, res) => {
 export const reorderTodos = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await todosService.reorderTodos(userId(req), req.body.items) });
 });
+
+export const autoSchedule = asyncHandler(async (req, res) => {
+  const { autoScheduleTasks } = await import('./scheduler.service.js');
+  const data = await autoScheduleTasks(userId(req));
+  res.json({ success: true, data });
+});

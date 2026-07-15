@@ -10,4 +10,5 @@ export const usersRoutes = Router();
 usersRoutes.get('/me', controller.getMe);
 usersRoutes.patch('/me', validate({ body: updateUserSchema }), controller.updateMe);
 usersRoutes.delete('/me', controller.deleteMe);
+usersRoutes.patch('/me/xp', controller.addXP);
 usersRoutes.post('/me/avatar', upload.single('avatar'), controller.uploadAvatar);

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/Modal';
+import { useDialog } from '@/components/DialogProvider';
 import { 
   FolderPlus, 
   Folder, 
@@ -37,6 +38,7 @@ type FolderType = {
 
 export default function NotesPage() {
   const queryClient = useQueryClient();
+  const { confirm, prompt } = useDialog();
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [folderModal, setFolderModal] = useState({ isOpen: false, name: '', color: '#6366f1' });
@@ -210,7 +212,7 @@ export default function NotesPage() {
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: folder.color || '#6366f1' }}></div>
                   <span className="text-sm font-medium flex-1 text-left truncate">{folder.name}</span>
                   <span 
-                    onClick={(e) => { e.stopPropagation(); if (confirm('Delete folder?')) deleteFolderMutation.mutate(folder.id); }}
+                    onClick={async (e) => { e.stopPropagation(); if (await confirm('Delete folder?')) deleteFolderMutation.mutate(folder.id); }}
                     className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 transition-opacity"
                   >
                     <Trash2 size={12} />
@@ -294,8 +296,8 @@ export default function NotesPage() {
                   <List size={16} />
                 </button>
                 <button 
-                  onClick={() => {
-                    const url = prompt('Enter link URL:');
+                  onClick={async () => {
+                    const url = await prompt('Enter link URL:');
                     if (url) document.execCommand('createLink', false, url);
                   }}
                   className="w-8 h-8 rounded hover:bg-surface-hover flex items-center justify-center text-muted hover:text-foreground transition-colors"

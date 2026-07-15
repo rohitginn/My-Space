@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { DollarSign, TrendingDown, TrendingUp, Plus, MoreHorizontal, ShoppingCart, Loader2, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { Modal } from '@/components/Modal';
+import { useDialog } from '@/components/DialogProvider';
 
 type Expense = {
   id: string;
@@ -17,6 +18,7 @@ type Expense = {
 
 export default function ExpensesPage() {
   const queryClient = useQueryClient();
+  const { confirm } = useDialog();
   const [expenseModal, setExpenseModal] = useState<{isOpen: boolean, isEdit: boolean, data: any}>({isOpen: false, isEdit: false, data: null});
   const [activeDropdownId, setActiveDropdownId] = useState<string | null>(null);
 
@@ -162,7 +164,7 @@ export default function ExpensesPage() {
                               <Edit size={14} /> Edit
                             </button>
                             <button 
-                              onClick={() => { if(confirm('Delete expense?')) deleteExpenseMutation.mutate(expense.id); setActiveDropdownId(null); }}
+                              onClick={async () => { if(await confirm('Delete expense?')) deleteExpenseMutation.mutate(expense.id); setActiveDropdownId(null); }}
                               className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
                             >
                               <Trash2 size={14} /> Delete

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Target, Loader2, Trash2, Edit2, TrendingUp, CheckCircle } from 'lucide-react';
 import api from '@/lib/api';
 import { Modal } from '@/components/Modal';
+import { useDialog } from '@/components/DialogProvider';
 
 type Goal = {
   id: string;
@@ -17,6 +18,7 @@ type Goal = {
 
 export default function GoalsPage() {
   const queryClient = useQueryClient();
+  const { confirm, prompt } = useDialog();
   const [modalOpen, setModalOpen] = useState<{ isOpen: boolean, isEdit: boolean, data: any }>({ isOpen: false, isEdit: false, data: null });
 
   const { data: goalsData, isLoading } = useQuery({
@@ -111,7 +113,7 @@ export default function GoalsPage() {
                     <Edit2 size={16} />
                   </button>
                   <button 
-                    onClick={() => { if(confirm('Delete this goal?')) deleteGoalMutation.mutate(goal.id); }}
+                    onClick={async () => { if(await confirm('Delete this goal?')) deleteGoalMutation.mutate(goal.id); }}
                     className="text-muted hover:text-red-500 p-1 rounded-md"
                   >
                     <Trash2 size={16} />
@@ -155,8 +157,8 @@ export default function GoalsPage() {
                     </button>
                     
                     <button 
-                      onClick={() => {
-                        const val = prompt('Enter new progress (0-100):', goal.progress.toString());
+                      onClick={async () => {
+                        const val = await prompt('Enter new progress (0-100):', { defaultValue: goal.progress.toString() });
                         if (val !== null) {
                           const parsed = parseInt(val, 10);
                           if (!isNaN(parsed)) updateProgress(goal, parsed);

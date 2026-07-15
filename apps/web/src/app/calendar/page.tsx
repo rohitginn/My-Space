@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Plus, MoreHorizontal, Loader2, Edit, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { Modal } from '@/components/Modal';
+import { useDialog } from '@/components/DialogProvider';
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -20,6 +21,7 @@ type CalendarEvent = {
 
 export default function CalendarPage() {
   const queryClient = useQueryClient();
+  const { confirm } = useDialog();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   // Modals state
@@ -259,7 +261,7 @@ export default function CalendarPage() {
                         </div>
                         {!event.readOnly && (
                           <button 
-                            onClick={(e) => { e.stopPropagation(); if(confirm('Delete event?')) deleteEventMutation.mutate(event.id); }}
+                            onClick={async (e) => { e.stopPropagation(); if(await confirm('Delete event?')) deleteEventMutation.mutate(event.id); }}
                             className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/event:opacity-100 p-1 text-red-500 hover:bg-red-500/20 rounded bg-background shadow"
                           >
                             <Trash2 size={12} />

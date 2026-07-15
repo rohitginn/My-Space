@@ -9,6 +9,10 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
+  displayName: string;
+  xp: number;
+  level: number;
+  currentStreak: number;
 }
 
 interface AuthContextType {

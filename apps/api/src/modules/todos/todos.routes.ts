@@ -8,6 +8,7 @@ export const todosRoutes = Router();
 
 todosRoutes.get('/', validate({ query: listTodosQuerySchema }), controller.listTodos);
 todosRoutes.post('/', validate({ body: createTodoSchema }), controller.createTodo);
+todosRoutes.post('/auto-schedule', controller.autoSchedule);
 todosRoutes.patch('/reorder', validate({ body: reorderTodosSchema }), controller.reorderTodos);
 todosRoutes.patch('/:id', validate({ params: idParamsSchema, body: updateTodoSchema }), controller.updateTodo);
 todosRoutes.patch('/:id/toggle', validate({ params: idParamsSchema }), controller.toggleTodo);

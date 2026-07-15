@@ -57,7 +57,26 @@ export async function login(input: LoginInput) {
   const passwordMatches = await comparePassword(input.password, userRecord.passwordHash);
   if (!passwordMatches) throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
 
-  await db.update(users).set({ lastLoginAt: new Date(), updatedAt: new Date() }).where(eq(users.id, userRecord.id));
+  const now = new Date();
+  let newStreak = userRecord.currentStreak || 0;
+  
+  if (userRecord.lastLoginAt) {
+    const { default: dayjs } = await import('dayjs');
+    const lastLogin = dayjs(userRecord.lastLoginAt).startOf('day');
+    const today = dayjs(now).startOf('day');
+    const diff = today.diff(lastLogin, 'day');
+    
+    if (diff === 1) {
+      newStreak += 1;
+    } else if (diff > 1) {
+      newStreak = 1;
+    }
+    // If diff === 0, streak remains unchanged
+  } else {
+    newStreak = 1;
+  }
+
+  await db.update(users).set({ lastLoginAt: now, currentStreak: newStreak, updatedAt: now }).where(eq(users.id, userRecord.id));
   const user = toAuthUser(userRecord);
   const tokens = await issueTokens(user);
   return { user, ...tokens };

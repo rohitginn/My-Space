@@ -31,3 +31,19 @@ export async function updateMe(userId: string, input: Partial<typeof users.$infe
 export async function deleteMe(userId: string) {
   await db.update(users).set({ deletedAt: new Date(), refreshToken: null, updatedAt: new Date() }).where(eq(users.id, userId));
 }
+
+export async function addXP(userId: string, amount: number) {
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!user) return null;
+  
+  const newXp = (user.xp || 0) + amount;
+  // Let's say 1 level = 100 XP
+  const newLevel = Math.floor(newXp / 100) + 1;
+  
+  const [updated] = await db.update(users)
+    .set({ xp: newXp, level: newLevel, updatedAt: new Date() })
+    .where(eq(users.id, userId))
+    .returning({ xp: users.xp, level: users.level });
+    
+  return updated;
+}

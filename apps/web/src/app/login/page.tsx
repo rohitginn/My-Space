@@ -41,6 +41,8 @@ export default function LoginPage() {
         });
         setFieldErrors(errors);
         setError('Please fix the errors below.');
+      } else if (!err.response) {
+        setError('Network Error: The backend server is unreachable. Please ensure it is running.');
       } else {
         setError(apiError?.message || 'An error occurred during login');
       }

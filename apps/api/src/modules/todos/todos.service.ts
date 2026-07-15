@@ -39,7 +39,16 @@ export async function updateTodo(userId: string, id: string, input: Partial<type
 export async function toggleTodo(userId: string, id: string) {
   const todo = await db.query.todos.findFirst({ where: and(eq(todos.id, id), eq(todos.userId, userId)) });
   if (!todo) throw new AppError('Todo not found', 404, 'TODO_NOT_FOUND');
-  return updateTodo(userId, id, { isCompleted: !todo.isCompleted });
+  
+  const isCompleting = !todo.isCompleted;
+  const updated = await updateTodo(userId, id, { isCompleted: isCompleting });
+  
+  if (isCompleting) {
+    const { addXP } = await import('../users/users.service.js');
+    await addXP(userId, 10); // Reward 10 XP for task completion
+  }
+  
+  return updated;
 }
 
 export async function deleteTodo(userId: string, id: string) {

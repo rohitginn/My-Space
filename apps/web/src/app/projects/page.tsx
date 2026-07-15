@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, MoreHorizontal, MessageSquare, Clock, Loader2, AlertCircle, Edit, Trash2, Calendar as CalendarIcon, Tag } from 'lucide-react';
 import api from '@/lib/api';
 import { Modal } from '@/components/Modal';
+import { useDialog } from '@/components/DialogProvider';
 
 type KanbanCard = {
   id: string;
@@ -73,7 +74,7 @@ function SortableCard({ card, activeDropdownId, setActiveDropdownId, setCardModa
                 <Edit size={14} /> Edit
               </button>
               <button 
-                onClick={(e) => { e.stopPropagation(); if(confirm('Delete card?')) deleteCardMutation.mutate(card.id); setActiveDropdownId(null); }}
+                onClick={async (e) => { e.stopPropagation(); if(await confirm('Delete card?')) deleteCardMutation.mutate(card.id); setActiveDropdownId(null); }}
                 className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
               >
                 <Trash2 size={14} /> Delete
@@ -105,6 +106,7 @@ function SortableCard({ card, activeDropdownId, setActiveDropdownId, setCardModa
 
 export default function KanbanPage() {
   const queryClient = useQueryClient();
+  const { confirm } = useDialog();
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
 
   // Modals state
@@ -428,7 +430,7 @@ export default function KanbanPage() {
                     <Edit size={14} /> Edit Board
                   </button>
                   <button 
-                    onClick={() => { if(confirm('Delete board?')) deleteBoardMutation.mutate(board.id); setActiveDropdownId(null); }}
+                    onClick={async () => { if(await confirm('Delete board?')) deleteBoardMutation.mutate(board.id); setActiveDropdownId(null); }}
                     className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
                   >
                     <Trash2 size={14} /> Delete
@@ -494,7 +496,7 @@ export default function KanbanPage() {
                         <Edit size={14} /> Edit
                       </button>
                       <button 
-                        onClick={() => { if(confirm('Delete column?')) deleteColumnMutation.mutate(column.id); setActiveDropdownId(null); }}
+                        onClick={async () => { if(await confirm('Delete column?')) deleteColumnMutation.mutate(column.id); setActiveDropdownId(null); }}
                         className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2"
                       >
                         <Trash2 size={14} /> Delete
