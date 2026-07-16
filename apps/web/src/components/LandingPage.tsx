@@ -95,7 +95,7 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="landing-image-frame landing-scroll-image relative mt-10 w-full sm:ml-auto lg:absolute lg:bottom-10 lg:right-12 lg:mt-0 lg:w-[min(57%,760px)]">
+          <div className="landing-image-frame landing-scroll-image relative mt-10 w-full sm:ml-auto lg:absolute lg:bottom-70 lg:right-0 lg:mt-0 lg:w-[min(57%,760px)]">
             <Image
               src="/images/myspace-planning-collage.png"
               alt="A tactile planning sheet bringing notes, a habit grid, calendar, and focus timer into one view"
