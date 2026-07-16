@@ -324,29 +324,46 @@ function ArrowRenderer({ shape, onPointerDown }: ShapeRendererProps) {
 
 function TextRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const textShape = shape as TextShape;
+  const w = Math.max(textShape.width, 20);
+  const h = Math.max(textShape.height, textShape.fontSize + 8);
 
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
       <rect
         x={textShape.x}
         y={textShape.y}
-        width={Math.max(textShape.width, 20)}
-        height={Math.max(textShape.height, textShape.fontSize + 8)}
+        width={w}
+        height={h}
         fill={textShape.fillStyle !== 'none' && textShape.fill !== 'transparent' ? textShape.fill : 'transparent'}
         stroke="none"
         pointerEvents="fill"
       />
-      <text
-        x={textShape.x + 4}
-        y={textShape.y + textShape.fontSize}
-        fill={textShape.color}
-        fontSize={textShape.fontSize}
-        fontFamily={textShape.fontFamily || 'Inter, system-ui, sans-serif'}
-        opacity={textShape.opacity}
-        style={{ userSelect: 'none' }}
+      <foreignObject
+        x={textShape.x}
+        y={textShape.y}
+        width={w}
+        height={h}
+        style={{ pointerEvents: 'none' }}
       >
-        {textShape.text}
-      </text>
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            color: textShape.color,
+            fontSize: textShape.fontSize,
+            fontFamily: textShape.fontFamily || 'Inter, system-ui, sans-serif',
+            opacity: textShape.opacity,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            overflow: 'hidden',
+            lineHeight: 1.2,
+            padding: '2px 4px',
+            userSelect: 'none',
+          }}
+        >
+          {textShape.text}
+        </div>
+      </foreignObject>
     </RotationWrapper>
   );
 }

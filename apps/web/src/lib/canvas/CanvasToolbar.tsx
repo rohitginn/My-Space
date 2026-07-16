@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MousePointer2, Hand, Pencil, Square, Circle, Minus,
@@ -72,15 +72,33 @@ export function CanvasToolbar({
   hasSelection,
 }: CanvasToolbarProps) {
   const [showStylePanel, setShowStylePanel] = useState(false);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+
+  // Click outside to close style panel
+  useEffect(() => {
+    if (!showStylePanel) return;
+
+    const handleOutsideClick = (e: PointerEvent) => {
+      if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
+        setShowStylePanel(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsideClick);
+    return () => document.removeEventListener('pointerdown', handleOutsideClick);
+  }, [showStylePanel]);
 
   return (
-    <>
-      {/* Main floating tool bar — bottom center */}
+    <div
+      ref={toolbarRef}
+      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col-reverse items-center gap-3 pointer-events-none"
+    >
+      {/* Main floating tool bar */}
       <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-1 bg-surface/90 backdrop-blur-xl border border-border/60 rounded-2xl px-2 py-1.5 shadow-2xl"
+        className="flex items-center gap-1 bg-surface/90 backdrop-blur-xl border border-border/60 rounded-2xl px-2 py-1.5 shadow-2xl pointer-events-auto"
       >
         {/* Drawing tools */}
         {TOOLS.map(({ type, icon: Icon, label, shortcut }) => (
@@ -177,7 +195,7 @@ export function CanvasToolbar({
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 10, opacity: 0, scale: 0.95 }}
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 bg-surface/95 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-2xl w-[320px] max-h-[70vh] overflow-y-auto"
+            className="w-[320px] max-h-[70vh] overflow-y-auto bg-surface/95 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-2xl pointer-events-auto"
           >
             {/* Color picker */}
             <div className="mb-4">
@@ -337,6 +355,6 @@ export function CanvasToolbar({
           </motion.div>
         )}
       </AnimatePresence>
-    </>
+    </div>
   );
 }

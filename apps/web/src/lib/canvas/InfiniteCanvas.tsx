@@ -5,6 +5,7 @@
 'use client';
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import type {
   Point, CanvasShape, PenShape, RectangleShape,
   EllipseShape, LineShape, ArrowShape, TextShape,
@@ -29,6 +30,9 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
   const { state, ...actions } = engine;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Refs for transient interaction state (avoids re-renders during drag)
   const drawingPointsRef = useRef<Point[]>([]);
@@ -58,6 +62,24 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
     },
     [state.camera, getRect]
   );
+
+  // ── Fullscreen toggle ──────────────────────────────────────
+  const toggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().then(() => setIsFullscreen(true)).catch(console.error);
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(console.error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // ── Shape creation helpers ─────────────────────────────────
   const createShape = useCallback(
@@ -537,6 +559,20 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
   const sortedShapes = Object.values(state.shapes).sort((a, b) => a.zIndex - b.zIndex);
   const selectedShapes = state.selectedIds.map((id) => state.shapes[id]).filter(Boolean);
 
+  // Derive active selection style if a single shape is selected
+  const activeSelectionStyle = selectedShapes.length === 1
+    ? {
+        color: selectedShapes[0].color,
+        strokeWidth: selectedShapes[0].strokeWidth,
+        strokeStyle: selectedShapes[0].strokeStyle || 'solid',
+        fill: selectedShapes[0].fill || 'transparent',
+        fillStyle: selectedShapes[0].fillStyle || 'none',
+        opacity: selectedShapes[0].opacity ?? 1,
+        fontSize: (selectedShapes[0] as any).fontSize || state.toolStyle.fontSize,
+        borderRadius: (selectedShapes[0] as any).borderRadius || 0,
+      }
+    : state.toolStyle;
+
   // ── Cursor ─────────────────────────────────────────────────
   const getCursor = () => {
     if (state.isPanning) return 'grabbing';
@@ -614,7 +650,15 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         <textarea
           ref={textInputRef}
           value={textInputValue}
-          onChange={(e) => setTextInputValue(e.target.value)}
+          onChange={(e) => {
+            setTextInputValue(e.target.value);
+            // Dynamic text height auto-resize based on input contents
+            if (textInputRef.current) {
+              const currentHeight = textInputRef.current.scrollHeight;
+              const worldHeight = currentHeight / state.camera.zoom;
+              actions.updateShape(editingTextId, { height: Math.max(worldHeight, 30) });
+            }
+          }}
           onBlur={commitTextEdit}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
@@ -625,14 +669,14 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
           style={{
             left: worldToScreen(state.shapes[editingTextId].x, state.shapes[editingTextId].y, state.camera).x - 2,
             top: worldToScreen(state.shapes[editingTextId].x, state.shapes[editingTextId].y, state.camera).y - 2,
+            width: Math.max(state.shapes[editingTextId].width * state.camera.zoom, 120),
+            height: Math.max(state.shapes[editingTextId].height * state.camera.zoom, 30),
             fontSize: ((state.shapes[editingTextId] as TextShape).fontSize || state.toolStyle.fontSize) * state.camera.zoom,
             fontFamily: 'Inter, system-ui, sans-serif',
             color: state.shapes[editingTextId].color || state.toolStyle.color,
-            minWidth: 120,
-            minHeight: 30,
             transform: state.shapes[editingTextId].rotation ? `rotate(${state.shapes[editingTextId].rotation}deg)` : undefined,
             transformOrigin: 'top left',
-            padding: 0,
+            padding: '2px 4px',
             lineHeight: 1.2
           }}
         />
@@ -641,7 +685,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
       {/* Toolbar */}
       <CanvasToolbar
         activeTool={state.activeTool}
-        toolStyle={state.toolStyle}
+        toolStyle={activeSelectionStyle}
         onToolChange={actions.setTool}
         onStyleChange={(style) => {
           if (state.selectedIds.length > 0) {
@@ -679,9 +723,19 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         hasSelection={state.selectedIds.length > 0}
       />
 
-      {/* Zoom indicator */}
-      <div className="absolute top-4 right-4 z-30 bg-surface/80 backdrop-blur border border-border/40 rounded-lg px-3 py-1.5 text-xs text-muted font-medium">
-        {Math.round(state.camera.zoom * 100)}%
+      {/* Zoom & Fullscreen Panel */}
+      <div className="absolute top-4 right-4 z-30 flex items-center gap-2 bg-surface/80 backdrop-blur border border-border/40 rounded-lg p-1.5 shadow-md">
+        <div className="px-2 py-0.5 text-xs text-muted font-medium">
+          {Math.round(state.camera.zoom * 100)}%
+        </div>
+        <div className="w-px h-4 bg-border/40" />
+        <button
+          onClick={toggleFullscreen}
+          className="p-1 text-muted hover:text-foreground hover:bg-surface-hover rounded transition-colors"
+          title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+        >
+          {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
       </div>
     </div>
   );
