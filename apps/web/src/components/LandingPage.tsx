@@ -46,7 +46,7 @@ const modules = [
 
 export function LandingPage() {
   return (
-    <div className="landing-page min-h-full overflow-hidden bg-[#171713] text-[#f0ede5] selection:bg-[#8d9971] selection:text-[#171713]">
+    <div className="landing-page min-h-full overflow-x-hidden bg-[#171713] text-[#f0ede5] selection:bg-[#8d9971] selection:text-[#171713]">
       <header className="landing-nav sticky top-0 z-30 border-b border-[#f0ede5]/10 bg-[#171713]/95 px-5 backdrop-blur-sm sm:px-8 lg:px-12">
         <div className="mx-auto flex h-[68px] max-w-[1360px] items-center justify-between gap-4">
           <Link href="/" className="group flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.03em] text-[#f0ede5]">
