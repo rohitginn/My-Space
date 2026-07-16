@@ -31,3 +31,8 @@ export const addXP = asyncHandler(async (req, res) => {
   if (isNaN(amount) || amount <= 0) throw new AppError('Invalid amount', 400, 'INVALID_AMOUNT');
   res.json({ success: true, data: await usersService.addXP(req.user.id, amount) });
 });
+
+export const getMyBadges = asyncHandler(async (req, res) => {
+  if (!req.user) throw new AppError('Authentication required', 401, 'AUTH_REQUIRED');
+  res.json({ success: true, data: await usersService.getBadges(req.user.id) });
+});

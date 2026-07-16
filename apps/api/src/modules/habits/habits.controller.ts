@@ -20,3 +20,16 @@ export const deleteHabitLog = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 export const habitStats = asyncHandler(async (req, res) => res.json({ success: true, data: await service.habitStats(userId(req), req.params.id) }));
+
+export const listRoutines = asyncHandler(async (req, res) => {
+  res.json({ success: true, data: await service.listRoutines(userId(req)) });
+});
+
+export const createRoutine = asyncHandler(async (req, res) => {
+  res.status(201).json({ success: true, data: await service.createRoutine(userId(req), req.body) });
+});
+
+export const applyRoutine = asyncHandler(async (req, res) => {
+  res.json({ success: true, data: await service.applyRoutine(userId(req), req.params.id) });
+});
+

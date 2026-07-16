@@ -1,8 +1,13 @@
+// ============================================================
+// Habits Tracker & Achievements Center
+// ============================================================
+
 'use client';
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Check, Loader2, Activity, Trash2, TrendingUp } from 'lucide-react';
+import { Plus, Check, Loader2, Activity, Trash2, TrendingUp, Award, Play } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '@/lib/api';
 import { Modal } from '@/components/Modal';
 import { useDialog } from '@/components/DialogProvider';
@@ -41,25 +46,30 @@ function Heatmap({ history, targetCount }: { history: Record<string, number>, ta
   );
 }
 
-type Habit = {
-  id: string;
-  name: string;
-  icon: string | null;
-  color: string | null;
-  frequency: 'daily' | 'weekly';
-  targetCount: number;
-};
+const ALL_BADGES = [
+  { type: 'focus_10', title: 'Focus Rookie', description: 'Spend 10 total minutes focusing in the Focus Room.', iconUrl: '/images/badges/focus_10.png' },
+  { type: 'focus_100', title: 'Deep Work Guru', description: 'Spend 100 total minutes focusing in the Focus Room.', iconUrl: '/images/badges/focus_100.png' },
+  { type: 'streak_3', title: 'Streak Starter', description: 'Maintain a 3-day habit streak.', iconUrl: '/images/badges/streak_3.png' },
+  { type: 'streak_10', title: 'Consistency Champion', description: 'Maintain a 10-day habit streak.', iconUrl: '/images/badges/streak_10.png' },
+  { type: 'goal_1', title: 'Goal Getter', description: 'Complete your first personal goal.', iconUrl: '/images/badges/goal_1.png' },
+  { type: 'task_10', title: 'Task Crusher', description: 'Complete 10 tasks in your space.', iconUrl: '/images/badges/task_10.png' },
+];
 
 export default function HabitsPage() {
   const queryClient = useQueryClient();
-  const { confirm } = useDialog();
+  const { confirm, alert } = useDialog();
+  const [activeTab, setActiveTab] = useState<'habits' | 'badges'>('habits');
   const [modalOpen, setModalOpen] = useState(false);
+  const [routineModalOpen, setRoutineModalOpen] = useState(false);
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
+  
+  // Custom habit and routines state
   const [newHabit, setNewHabit] = useState({ name: '', color: '#10b981', frequency: 'daily', targetCount: 1 });
+  const [newRoutine, setNewRoutine] = useState({ name: '', description: '', habits: [] as any[] });
+  const [tempHabit, setTempHabit] = useState({ name: '', color: '#3b82f6', frequency: 'daily', targetCount: 1 });
 
-  const today = new Date().toISOString().split('T')[0];
-
-  const { data: habitsData, isLoading } = useQuery({
+  // ── Queries ────────────────────────────────────────────────
+  const { data: habitsData, isLoading: isLoadingHabits } = useQuery({
     queryKey: ['habits'],
     queryFn: async () => {
       const { data } = await api.get('/habits');
@@ -67,6 +77,32 @@ export default function HabitsPage() {
     }
   });
 
+  const { data: routinesData, isLoading: isLoadingRoutines } = useQuery({
+    queryKey: ['routines'],
+    queryFn: async () => {
+      const { data } = await api.get('/habits/routines');
+      return data.data as any[];
+    }
+  });
+
+  const { data: badgesData, isLoading: isLoadingBadges } = useQuery({
+    queryKey: ['badges'],
+    queryFn: async () => {
+      const { data } = await api.get('/users/me/badges');
+      return data.data as any[];
+    }
+  });
+
+  const { data: statsData, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['habits', selectedHabitId, 'stats'],
+    queryFn: async () => {
+      const { data } = await api.get(`/habits/${selectedHabitId}/stats`);
+      return data.data;
+    },
+    enabled: !!selectedHabitId
+  });
+
+  // ── Mutations ──────────────────────────────────────────────
   const createHabitMutation = useMutation({
     mutationFn: async (vars: any) => {
       const { data } = await api.post('/habits', vars);
@@ -95,23 +131,42 @@ export default function HabitsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['habits'] });
+      queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['badges'] });
     }
   });
 
-  const { data: statsData, isLoading: isLoadingStats } = useQuery({
-    queryKey: ['habits', selectedHabitId, 'stats'],
-    queryFn: async () => {
-      const { data } = await api.get(`/habits/${selectedHabitId}/stats`);
+  const createRoutineMutation = useMutation({
+    mutationFn: async (vars: any) => {
+      const { data } = await api.post('/habits/routines', vars);
       return data.data;
     },
-    enabled: !!selectedHabitId
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['routines'] });
+      setRoutineModalOpen(false);
+      setNewRoutine({ name: '', description: '', habits: [] });
+    }
   });
 
-  if (isLoading) {
+  const applyRoutineMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/habits/routines/${id}/apply`);
+      return data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      alert('Routine applied! Habits created in your board.');
+    }
+  });
+
+  if (isLoadingHabits) {
     return <div className="p-8 h-full flex items-center justify-center text-muted"><Loader2 className="animate-spin mr-3" /> Loading Habits...</div>;
   }
 
   const habits = habitsData || [];
+  const routines = routinesData || [];
+  const unlockedBadges = badgesData || [];
+  const unlockedTypes = new Set(unlockedBadges.map(b => b.type));
 
   return (
     <div className="flex flex-col h-full w-full bg-background p-8 relative overflow-hidden">
@@ -123,116 +178,222 @@ export default function HabitsPage() {
             <Activity className="text-accent-green" size={28} />
             Habit Tracker
           </h1>
-          <p className="text-muted mt-2">Build healthy routines and track your daily progress.</p>
+          <p className="text-muted mt-2">Build healthy routines, apply templates, and unlock badges.</p>
         </div>
-        <button 
-          onClick={() => setModalOpen(true)}
-          className="bg-accent-green hover:bg-accent-green-hover text-white px-4 py-2 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
-        >
-          <Plus size={18} />
-          New Habit
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setRoutineModalOpen(true)}
+            className="border border-border hover:bg-surface-hover text-foreground px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2"
+          >
+            Create Routine
+          </button>
+          <button 
+            onClick={() => setModalOpen(true)}
+            className="bg-accent-green hover:bg-accent-green-hover text-white px-4 py-2 rounded-xl font-medium transition-colors shadow-sm flex items-center gap-2"
+          >
+            <Plus size={18} />
+            New Habit
+          </button>
+        </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto z-10">
-        {habits.length === 0 ? (
-          <div className="bg-surface/50 border border-dashed border-border rounded-xl p-12 text-center text-muted flex flex-col items-center">
-            <TrendingUp size={48} className="text-muted/30 mb-4" />
-            <h3 className="text-lg font-medium text-foreground mb-1">No Habits Yet</h3>
-            <p className="mb-4">Start small. Create your first habit and try to hit it today!</p>
-            <button onClick={() => setModalOpen(true)} className="text-accent-green hover:underline">Create a habit</button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {habits.map((habit) => {
-              const todayCount = habit.todayCount || 0;
-              const targetCount = habit.targetCount || 1;
-              const isCompletedToday = todayCount >= targetCount;
-              const progressPercent = Math.min(100, Math.round((todayCount / targetCount) * 100));
-              const circumference = 2 * Math.PI * 22; // r=22
-              const offset = circumference - (progressPercent / 100) * circumference;
-              
-              return (
-                <div 
-                  key={habit.id} 
-                  onClick={() => setSelectedHabitId(habit.id)}
-                  className="bg-surface border border-border rounded-xl p-6 shadow-sm hover:border-accent-green/30 transition-all flex flex-col group relative overflow-hidden cursor-pointer"
-                >
-                  <div className="absolute left-0 top-0 bottom-0 bg-accent-green/5 transition-all duration-500 ease-out z-0" style={{ width: `${progressPercent}%` }}></div>
-                  
-                  <button 
-                    onClick={async (e) => { e.stopPropagation(); if(await confirm('Delete this habit?')) deleteHabitMutation.mutate(habit.id); }}
-                    className="absolute top-4 right-4 text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                  <div className="flex items-center gap-3 mb-6 z-10">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: habit.color || '#10b981' }}>
-                      <Activity size={20} />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-foreground text-lg">{habit.name}</h3>
-                      <div className="text-xs text-muted flex gap-2 items-center">
-                        <span className="capitalize">{habit.frequency}</span>
-                        {targetCount > 1 && (
-                          <>
-                            <span>•</span>
-                            <span>Target: {targetCount}</span>
-                          </>
-                        )}
-                        <span>•</span>
-                        <span className="flex items-center gap-1 text-orange-500"><TrendingUp size={12}/> {habit.currentStreak}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-auto pt-4 border-t border-border flex items-center justify-between z-10">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Today's Progress</p>
-                      <p className="text-xs text-muted">
-                        {isCompletedToday ? "Completed! 🎉" : targetCount > 1 ? `${todayCount} of ${targetCount} done` : "Not done yet"}
-                      </p>
-                    </div>
-                    
-                    <div className="relative w-14 h-14 flex items-center justify-center cursor-pointer" 
-                         onClick={(e) => { 
-                           e.stopPropagation(); 
-                           if (!isCompletedToday && !logHabitMutation.isPending) {
-                             logHabitMutation.mutate({ id: habit.id, logDate: new Date().toISOString() }) 
-                           }
-                         }}
-                    >
-                      <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 52 52">
-                        <circle cx="26" cy="26" r="22" className="stroke-surface-hover fill-none" strokeWidth="4" />
-                        <circle 
-                          cx="26" cy="26" r="22" 
-                          className={`fill-none transition-all duration-700 ease-out ${isCompletedToday ? 'stroke-accent-green' : 'stroke-accent-blue'}`} 
-                          strokeWidth="4"
-                          strokeLinecap="round"
-                          strokeDasharray={circumference}
-                          strokeDashoffset={offset}
-                        />
-                      </svg>
-                      <div className={`absolute inset-0 m-auto w-10 h-10 rounded-full flex items-center justify-center transition-all ${isCompletedToday ? 'bg-accent-green text-white shadow-lg shadow-accent-green/20' : 'bg-surface hover:bg-surface-hover text-muted hover:text-accent-blue'}`}>
-                        {logHabitMutation.isPending && logHabitMutation.variables?.id === habit.id ? (
-                          <Loader2 size={18} className="animate-spin" />
-                        ) : isCompletedToday ? (
-                          <Check size={20} className="scale-110" />
-                        ) : targetCount > 1 ? (
-                          <Plus size={20} />
-                        ) : (
-                          <Check size={20} />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+      {/* Tabs */}
+      <div className="flex border-b border-border mb-8 z-10">
+        <button
+          onClick={() => setActiveTab('habits')}
+          className={`px-6 py-3 font-semibold text-sm border-b-2 transition-all ${activeTab === 'habits' ? 'border-accent-green text-accent-green' : 'border-transparent text-muted hover:text-foreground'}`}
+        >
+          Daily Habits
+        </button>
+        <button
+          onClick={() => setActiveTab('badges')}
+          className={`px-6 py-3 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === 'badges' ? 'border-accent-green text-accent-green' : 'border-transparent text-muted hover:text-foreground'}`}
+        >
+          <Award size={16} />
+          Achievements ({unlockedBadges.length}/{ALL_BADGES.length})
+        </button>
       </div>
 
+      <div className="flex-1 overflow-y-auto z-10">
+        <AnimatePresence mode="wait">
+          {activeTab === 'habits' ? (
+            <motion.div
+              key="habits-tab"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-12"
+            >
+              {/* Routine Templates */}
+              {routines.length > 0 && (
+                <div>
+                  <h2 className="text-xs uppercase tracking-wider font-bold text-muted mb-4">Routine Templates</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {routines.map((routine) => (
+                      <div key={routine.id} className="bg-surface/50 glass border border-border p-5 rounded-2xl flex flex-col justify-between">
+                        <div>
+                          <h3 className="font-bold text-foreground text-lg mb-1">{routine.name}</h3>
+                          <p className="text-muted text-sm mb-4">{routine.description || 'Pre-configured routines to boost your day.'}</p>
+                        </div>
+                        <button
+                          onClick={() => applyRoutineMutation.mutate(routine.id)}
+                          disabled={applyRoutineMutation.isPending}
+                          className="w-full flex items-center justify-center gap-2 bg-surface hover:bg-surface-hover border border-border rounded-xl py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+                        >
+                          <Play size={14} className="fill-current" />
+                          Apply Routine
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Habits list */}
+              <div>
+                <h2 className="text-xs uppercase tracking-wider font-bold text-muted mb-4">Active Habits</h2>
+                {habits.length === 0 ? (
+                  <div className="bg-surface/50 border border-dashed border-border rounded-xl p-12 text-center text-muted flex flex-col items-center">
+                    <TrendingUp size={48} className="text-muted/30 mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-1">No Habits Yet</h3>
+                    <p className="mb-4">Create custom habits or apply one of the routines above to begin.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {habits.map((habit) => {
+                      const todayCount = habit.todayCount || 0;
+                      const targetCount = habit.targetCount || 1;
+                      const isCompletedToday = todayCount >= targetCount;
+                      const progressPercent = Math.min(100, Math.round((todayCount / targetCount) * 100));
+                      const circumference = 2 * Math.PI * 22; // r=22
+                      const offset = circumference - (progressPercent / 100) * circumference;
+                      
+                      return (
+                        <div 
+                          key={habit.id} 
+                          onClick={() => setSelectedHabitId(habit.id)}
+                          className="bg-surface border border-border rounded-xl p-6 shadow-sm hover:border-accent-green/30 transition-all flex flex-col group relative overflow-hidden cursor-pointer"
+                        >
+                          <div className="absolute left-0 top-0 bottom-0 bg-accent-green/5 transition-all duration-500 ease-out z-0" style={{ width: `${progressPercent}%` }}></div>
+                          
+                          <button 
+                            onClick={async (e) => { e.stopPropagation(); if(await confirm('Delete this habit?')) deleteHabitMutation.mutate(habit.id); }}
+                            className="absolute top-4 right-4 text-muted hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                          <div className="flex items-center gap-3 mb-6 z-10">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ backgroundColor: habit.color || '#10b981' }}>
+                              <Activity size={20} />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-foreground text-lg">{habit.name}</h3>
+                              <div className="text-xs text-muted flex gap-2 items-center">
+                                <span className="capitalize">{habit.frequency}</span>
+                                {targetCount > 1 && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Target: {targetCount}</span>
+                                  </>
+                                )}
+                                <span>•</span>
+                                <span className="flex items-center gap-1 text-orange-500"><TrendingUp size={12}/> {habit.currentStreak}</span>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-auto pt-4 border-t border-border flex items-center justify-between z-10">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">Today's Progress</p>
+                              <p className="text-xs text-muted">
+                                {isCompletedToday ? "Completed! 🎉" : targetCount > 1 ? `${todayCount} of ${targetCount} done` : "Not done yet"}
+                              </p>
+                            </div>
+                            
+                            <div className="relative w-14 h-14 flex items-center justify-center cursor-pointer" 
+                                 onClick={(e) => { 
+                                   e.stopPropagation(); 
+                                   if (!isCompletedToday && !logHabitMutation.isPending) {
+                                     logHabitMutation.mutate({ id: habit.id, logDate: new Date().toISOString() }) 
+                                   }
+                                 }}
+                            >
+                              <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 52 52">
+                                <circle cx="26" cy="26" r="22" className="stroke-surface-hover fill-none" strokeWidth="4" />
+                                <circle 
+                                  cx="26" cy="26" r="22" 
+                                  className={`fill-none transition-all duration-700 ease-out ${isCompletedToday ? 'stroke-accent-green' : 'stroke-accent-blue'}`} 
+                                  strokeWidth="4"
+                                  strokeLinecap="round"
+                                  strokeDasharray={circumference}
+                                  strokeDashoffset={offset}
+                                />
+                              </svg>
+                              <div className={`absolute inset-0 m-auto w-10 h-10 rounded-full flex items-center justify-center transition-all ${isCompletedToday ? 'bg-accent-green text-white shadow-lg shadow-accent-green/20' : 'bg-surface hover:bg-surface-hover text-muted hover:text-accent-blue'}`}>
+                                {logHabitMutation.isPending && logHabitMutation.variables?.id === habit.id ? (
+                                  <Loader2 size={18} className="animate-spin" />
+                                ) : isCompletedToday ? (
+                                  <Check size={20} className="scale-110" />
+                                ) : targetCount > 1 ? (
+                                  <Plus size={20} />
+                                ) : (
+                                  <Check size={20} />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="badges-tab"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {ALL_BADGES.map((badge) => {
+                const isUnlocked = unlockedTypes.has(badge.type);
+                const unlockInfo = unlockedBadges.find(b => b.type === badge.type);
+
+                return (
+                  <div 
+                    key={badge.type}
+                    className={`bg-surface border p-6 rounded-2xl flex items-center gap-5 transition-all shadow-sm ${isUnlocked ? 'border-accent-green/30 bg-gradient-to-br from-surface to-accent-green/[0.02]' : 'border-border opacity-70'}`}
+                  >
+                    <div className="relative shrink-0 w-16 h-16 flex items-center justify-center bg-surface border border-border rounded-xl p-1.5 shadow-inner">
+                      <img 
+                        src={badge.iconUrl} 
+                        alt={badge.title} 
+                        className={`w-full h-full object-contain ${isUnlocked ? 'filter-none' : 'filter grayscale contrast-50 opacity-20'}`} 
+                      />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-foreground text-lg flex items-center gap-2">
+                        {badge.title}
+                        {isUnlocked && <span className="text-[10px] bg-accent-green/10 text-accent-green px-1.5 py-0.5 rounded-full font-bold">Unlocked</span>}
+                      </h3>
+                      <p className="text-muted text-sm mt-1">{badge.description}</p>
+                      {isUnlocked && unlockInfo && (
+                        <p className="text-[10px] text-muted mt-2">
+                          Earned {new Date(unlockInfo.unlockedAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Create Habit Modal */}
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title="Create New Habit">
         <div className="space-y-4">
           <div>
@@ -279,7 +440,6 @@ export default function HabitsPage() {
               />
               <span className="text-foreground font-semibold bg-surface border border-border rounded-lg px-3 py-1 text-sm">{newHabit.targetCount}</span>
             </div>
-            <p className="text-xs text-muted mt-1">Example: For "Drink 8 glasses of water", set target to 8.</p>
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <button onClick={() => setModalOpen(false)} className="px-4 py-2 text-muted hover:text-foreground font-medium">Cancel</button>
@@ -289,6 +449,93 @@ export default function HabitsPage() {
               className="bg-accent-green text-white px-6 py-2 rounded-lg font-medium hover:bg-accent-green-hover transition-colors disabled:opacity-50"
             >
               {createHabitMutation.isPending ? 'Saving...' : 'Create Habit'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Create Routine Modal */}
+      <Modal isOpen={routineModalOpen} onClose={() => setRoutineModalOpen(false)} title="Create Custom Routine">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-muted block mb-1">Routine Name</label>
+            <input 
+              type="text" 
+              value={newRoutine.name}
+              onChange={e => setNewRoutine({...newRoutine, name: e.target.value})}
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-foreground focus:border-accent-green focus:outline-none"
+              placeholder="e.g. Bedtime Prep"
+            />
+          </div>
+          <div>
+            <label className="text-sm font-medium text-muted block mb-1">Description</label>
+            <textarea 
+              value={newRoutine.description}
+              onChange={e => setNewRoutine({...newRoutine, description: e.target.value})}
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-foreground focus:border-accent-green focus:outline-none h-20 resize-none"
+              placeholder="Explain the purpose of this routine"
+            />
+          </div>
+          
+          <div className="border-t border-border pt-4">
+            <label className="text-sm font-semibold text-foreground block mb-2">Add Habit to Routine</label>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <input 
+                type="text"
+                value={tempHabit.name}
+                onChange={e => setTempHabit({...tempHabit, name: e.target.value})}
+                placeholder="Habit name (e.g. Journal)"
+                className="bg-surface border border-border rounded-lg px-3 py-1.5 text-sm text-foreground focus:border-accent-green focus:outline-none"
+              />
+              <div className="flex gap-2">
+                <input 
+                  type="color"
+                  value={tempHabit.color}
+                  onChange={e => setTempHabit({...tempHabit, color: e.target.value})}
+                  className="w-10 h-8 bg-transparent cursor-pointer rounded-lg border border-border p-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (tempHabit.name.trim()) {
+                      setNewRoutine({...newRoutine, habits: [...newRoutine.habits, {...tempHabit, name: tempHabit.name.trim()}]});
+                      setTempHabit({ name: '', color: '#3b82f6', frequency: 'daily', targetCount: 1 });
+                    }
+                  }}
+                  className="flex-1 bg-surface border border-border hover:bg-surface-hover rounded-lg text-xs font-semibold text-foreground"
+                >
+                  Add Habit
+                </button>
+              </div>
+            </div>
+            
+            {/* Added habits list preview */}
+            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+              {newRoutine.habits.map((h, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-surface border border-border rounded-lg px-3 py-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: h.color }} />
+                    <span className="font-medium text-foreground">{h.name}</span>
+                  </div>
+                  <button 
+                    onClick={() => setNewRoutine({...newRoutine, habits: newRoutine.habits.filter((_, i) => i !== idx)})}
+                    className="text-red-500 text-xs hover:underline"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button onClick={() => setRoutineModalOpen(false)} className="px-4 py-2 text-muted hover:text-foreground font-medium">Cancel</button>
+            <button 
+              onClick={() => createRoutineMutation.mutate(newRoutine)}
+              disabled={createRoutineMutation.isPending || !newRoutine.name || newRoutine.habits.length === 0}
+              className="bg-accent-green text-white px-6 py-2 rounded-lg font-medium hover:bg-accent-green-hover transition-colors disabled:opacity-50"
+            >
+              {createRoutineMutation.isPending ? 'Saving...' : 'Create Routine'}
             </button>
           </div>
         </div>

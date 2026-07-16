@@ -8,6 +8,7 @@ import { updateUserSchema } from './users.validators.js';
 export const usersRoutes = Router();
 
 usersRoutes.get('/me', controller.getMe);
+usersRoutes.get('/me/badges', controller.getMyBadges);
 usersRoutes.patch('/me', validate({ body: updateUserSchema }), controller.updateMe);
 usersRoutes.delete('/me', controller.deleteMe);
 usersRoutes.patch('/me/xp', controller.addXP);

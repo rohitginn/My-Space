@@ -10,8 +10,18 @@ export async function createGoal(userId: string, input: typeof goals.$inferInser
   return created;
 }
 export async function updateGoal(userId: string, id: string, input: Partial<typeof goals.$inferInsert>) {
+  const original = await db.query.goals.findFirst({
+    where: and(eq(goals.id, id), eq(goals.userId, userId))
+  });
+  if (!original) throw new AppError('Goal not found', 404, 'GOAL_NOT_FOUND');
+
   const [updated] = await db.update(goals).set({ ...input, updatedAt: new Date() }).where(and(eq(goals.id, id), eq(goals.userId, userId))).returning();
-  if (!updated) throw new AppError('Goal not found', 404, 'GOAL_NOT_FOUND');
+  
+  if (input.status === 'completed' && original.status !== 'completed') {
+    const { addXP } = await import('../users/users.service.js');
+    await addXP(userId, 50); // 50 XP for completing a goal
+  }
+  
   return updated;
 }
 export const deleteGoal = (userId: string, id: string) => db.delete(goals).where(and(eq(goals.id, id), eq(goals.userId, userId)));

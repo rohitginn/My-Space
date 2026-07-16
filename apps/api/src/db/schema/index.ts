@@ -10,3 +10,5 @@ export * from './tags.js';
 export * from './todos.js';
 export * from './users.js';
 export * from './drawings.js';
+export * from './routines.js';
+export * from './badges.js';

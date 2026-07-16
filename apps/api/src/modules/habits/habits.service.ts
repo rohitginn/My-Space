@@ -1,8 +1,9 @@
 import dayjs from 'dayjs';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, or, isNull } from 'drizzle-orm';
 
 import { db } from '../../config/db.js';
 import { habitLogs, habits } from '../../db/schema/habits.js';
+import { routines } from '../../db/schema/routines.js';
 import { AppError } from '../../utils/AppError.js';
 
 function calculateStreak(logs: Array<typeof habitLogs.$inferSelect>, targetCount: number) {
@@ -113,3 +114,83 @@ export async function habitStats(userId: string, id: string) {
     targetCount: habit.targetCount
   };
 }
+
+const GLOBAL_PRESETS = [
+  {
+    id: 'preset-morning',
+    userId: null,
+    name: 'Morning Ritual',
+    description: 'Start your day with positive, grounding habits.',
+    habitsJson: JSON.stringify([
+      { name: 'Drink Water', icon: 'Cup', color: '#0ea5e9', targetCount: 1 },
+      { name: 'Meditate', icon: 'Smile', color: '#a855f7', targetCount: 1 },
+      { name: 'Stretch', icon: 'Flame', color: '#f97316', targetCount: 1 },
+    ]),
+  },
+  {
+    id: 'preset-deep-work',
+    userId: null,
+    name: 'Deep Focus Prep',
+    description: 'Prepare your mind and environment for high-intensity work.',
+    habitsJson: JSON.stringify([
+      { name: 'Clear Desk', icon: 'Square', color: '#64748b', targetCount: 1 },
+      { name: 'Water & Tea', icon: 'Cup', color: '#0ea5e9', targetCount: 1 },
+      { name: 'No Distractions', icon: 'Moon', color: '#ec4899', targetCount: 1 },
+    ]),
+  },
+];
+
+export async function listRoutines(userId: string) {
+  const dbRoutines = await db
+    .select()
+    .from(routines)
+    .where(or(isNull(routines.userId), eq(routines.userId, userId)));
+  return [...GLOBAL_PRESETS, ...dbRoutines];
+}
+
+export async function createRoutine(userId: string, input: { name: string; description?: string; habits: any[] }) {
+  const [created] = await db
+    .insert(routines)
+    .values({
+      userId,
+      name: input.name,
+      description: input.description,
+      habitsJson: JSON.stringify(input.habits),
+    })
+    .returning();
+  return created;
+}
+
+export async function applyRoutine(userId: string, id: string) {
+  let routine = GLOBAL_PRESETS.find(p => p.id === id) as any;
+  if (!routine) {
+    routine = await db
+      .select()
+      .from(routines)
+      .where(and(eq(routines.id, id), eq(routines.userId, userId)))
+      .then(rows => rows[0]);
+  }
+
+  if (!routine) throw new AppError('Routine not found', 404, 'ROUTINE_NOT_FOUND');
+
+  const habitsList = JSON.parse(routine.habitsJson);
+  const createdHabits = [];
+
+  for (const h of habitsList) {
+    const [created] = await db
+      .insert(habits)
+      .values({
+        userId,
+        name: h.name,
+        icon: h.icon || 'Activity',
+        color: h.color || '#0ea5e9',
+        frequency: h.frequency || 'daily',
+        targetCount: h.targetCount || 1,
+      })
+      .returning();
+    createdHabits.push(created);
+  }
+
+  return createdHabits;
+}
+
