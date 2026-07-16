@@ -57,6 +57,58 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
   const half = HANDLE_SIZE / 2;
   const cx = (minX + maxX) / 2;
 
+  const isText = shapes.length === 1 && shapes[0].type === 'text';
+
+  if (isText) {
+    return (
+      <g className="selection-overlay text-selection">
+        {/* Sleek laser glowing bounding box */}
+        <rect
+          x={minX - 4}
+          y={minY - 4}
+          width={w + 8}
+          height={h + 8}
+          fill="transparent"
+          stroke="#00f0ff"
+          strokeWidth={2}
+          filter="url(#laser-glow)"
+          pointerEvents="none"
+          style={{ vectorEffect: 'non-scaling-stroke' }}
+        />
+        
+        {/* Rotation handle connector line */}
+        <line
+          x1={cx}
+          y1={minY - 4}
+          x2={cx}
+          y2={minY - ROTATION_HANDLE_OFFSET}
+          stroke="#00f0ff"
+          strokeWidth={1}
+          pointerEvents="none"
+          style={{ vectorEffect: 'non-scaling-stroke' }}
+        />
+
+        {/* Rotation handle circle */}
+        <circle
+          cx={cx}
+          cy={minY - ROTATION_HANDLE_OFFSET}
+          r={5}
+          fill="#ffffff"
+          stroke="#00f0ff"
+          strokeWidth={1.5}
+          style={{
+            cursor: 'grab',
+            vectorEffect: 'non-scaling-stroke',
+          }}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onHandlePointerDown(e, 'rotation');
+          }}
+        />
+      </g>
+    );
+  }
+
   return (
     <g className="selection-overlay">
       {/* Selection bounding rectangle */}

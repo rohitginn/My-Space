@@ -110,7 +110,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         case 'line':
           return { ...base, type: 'line' } as LineShape;
         case 'arrow':
-          return { ...base, type: 'arrow' } as ArrowShape;
+          return { ...base, type: 'arrow', arrowHead: 'end', arrowStyle: 'straight' } as ArrowShape;
         case 'text':
           return {
             ...base,
@@ -121,6 +121,15 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
             width: 200,
             height: 30,
           } as TextShape;
+        case 'diamond':
+        case 'triangle':
+        case 'star':
+        case 'hexagon':
+        case 'parallelogram':
+        case 'trapezoid':
+        case 'cylinder':
+        case 'callout':
+          return { ...base, type } as CanvasShape;
         default:
           return { ...base, type: 'rectangle', borderRadius: state.toolStyle.borderRadius } as RectangleShape;
       }
@@ -217,7 +226,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
           mouseX: e.clientX,
           mouseY: e.clientY,
         };
-        (e.target as Element)?.setPointerCapture?.(e.pointerId);
+        svgRef.current?.setPointerCapture(e.pointerId);
         return;
       }
 
@@ -236,8 +245,8 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         return;
       }
 
-      // Drawing tools (pen, rect, ellipse, line, arrow)
-      if (['pen', 'rectangle', 'ellipse', 'line', 'arrow'].includes(tool)) {
+      // Drawing tools (pen, rect, ellipse, line, arrow, and new shapes)
+      if (['pen', 'rectangle', 'ellipse', 'line', 'arrow', 'diamond', 'triangle', 'star', 'hexagon', 'parallelogram', 'trapezoid', 'cylinder', 'callout'].includes(tool)) {
         engine.pushHistory();
         actions.setDrawing(true);
         const shape = createShape(tool as CanvasShape['type'], worldPt);
@@ -249,7 +258,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         }
 
         dragStartRef.current = worldPt;
-        (e.target as Element)?.setPointerCapture?.(e.pointerId);
+        svgRef.current?.setPointerCapture(e.pointerId);
         return;
       }
 
@@ -280,7 +289,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
           // Start dragging
           actions.setDragging(true);
           dragStartRef.current = worldPt;
-          (e.target as Element)?.setPointerCapture?.(e.pointerId);
+          svgRef.current?.setPointerCapture(e.pointerId);
         } else {
           // Clicked on empty space: deselect
           actions.setSelected([]);
@@ -325,7 +334,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
           const dx = worldPt.x - dragStartRef.current.x;
           const dy = worldPt.y - dragStartRef.current.y;
 
-          if (tool === 'rectangle' || tool === 'ellipse') {
+          if (['rectangle', 'ellipse', 'diamond', 'triangle', 'star', 'hexagon', 'parallelogram', 'trapezoid', 'cylinder', 'callout'].includes(tool)) {
             // Normalize so width/height are always positive
             const x = dx >= 0 ? dragStartRef.current.x : worldPt.x;
             const y = dy >= 0 ? dragStartRef.current.y : worldPt.y;
@@ -484,7 +493,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
       engine.pushHistory();
       actions.setDragging(true);
       dragStartRef.current = worldPt;
-      (e.target as Element)?.setPointerCapture?.(e.pointerId);
+      svgRef.current?.setPointerCapture(e.pointerId);
     },
     [state.activeTool, state.selectedIds, getWorldPoint, actions, engine]
   );
@@ -516,7 +525,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         actions.setResizing(true, handle);
       }
       
-      (e.target as Element)?.setPointerCapture?.(e.pointerId);
+      svgRef.current?.setPointerCapture(e.pointerId);
     },
     [state.selectedIds, state.shapes, getWorldPoint, actions, engine]
   );
@@ -624,6 +633,15 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         onPointerUp={handlePointerUp}
         onDoubleClick={handleDoubleClick}
       >
+        <defs>
+          <filter id="laser-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
         <g transform={getCameraTransform(state.camera)}>
           {/* Render all shapes */}
           {sortedShapes.map((shape) => (

@@ -24,7 +24,21 @@ export interface AABB {
 }
 
 /** All available shape types */
-export type ShapeType = 'pen' | 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'text';
+export type ShapeType =
+  | 'pen'
+  | 'rectangle'
+  | 'ellipse'
+  | 'line'
+  | 'arrow'
+  | 'text'
+  | 'diamond'
+  | 'triangle'
+  | 'star'
+  | 'hexagon'
+  | 'parallelogram'
+  | 'trapezoid'
+  | 'cylinder'
+  | 'callout';
 
 /** All available tools (includes non-shape tools) */
 export type ToolType = ShapeType | 'select' | 'pan';
@@ -76,9 +90,11 @@ export interface LineShape extends BaseShape {
   type: 'line';
 }
 
-/** Arrow shape — a line with an arrowhead */
+/** Arrow shape — a line with customizable arrowheads and elbows */
 export interface ArrowShape extends BaseShape {
   type: 'arrow';
+  arrowHead?: 'none' | 'start' | 'end' | 'both';
+  arrowStyle?: 'straight' | 'curved' | 'elbow';
 }
 
 /** Text shape — editable text block */
@@ -89,8 +105,31 @@ export interface TextShape extends BaseShape {
   fontFamily: string;
 }
 
+export interface DiamondShape extends BaseShape { type: 'diamond'; }
+export interface TriangleShape extends BaseShape { type: 'triangle'; }
+export interface StarShape extends BaseShape { type: 'star'; }
+export interface HexagonShape extends BaseShape { type: 'hexagon'; }
+export interface ParallelogramShape extends BaseShape { type: 'parallelogram'; }
+export interface TrapezoidShape extends BaseShape { type: 'trapezoid'; }
+export interface CylinderShape extends BaseShape { type: 'cylinder'; }
+export interface CalloutShape extends BaseShape { type: 'callout'; }
+
 /** Union of all shape types */
-export type CanvasShape = PenShape | RectangleShape | EllipseShape | LineShape | ArrowShape | TextShape;
+export type CanvasShape =
+  | PenShape
+  | RectangleShape
+  | EllipseShape
+  | LineShape
+  | ArrowShape
+  | TextShape
+  | DiamondShape
+  | TriangleShape
+  | StarShape
+  | HexagonShape
+  | ParallelogramShape
+  | TrapezoidShape
+  | CylinderShape
+  | CalloutShape;
 
 /** The full document state serialized to/from the database */
 export interface CanvasDocument {

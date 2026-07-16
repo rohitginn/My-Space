@@ -5,8 +5,9 @@
 import { useReducer, useCallback, useRef } from 'react';
 import type {
   Camera, CanvasShape, ToolType, ToolStyle,
-  CanvasDocument, HandlePosition,
+  CanvasDocument, HandlePosition, PenShape,
 } from './types';
+import { pointsToSmoothPath } from './math';
 
 // ── State ───────────────────────────────────────────────────
 
@@ -134,7 +135,19 @@ function canvasReducer(state: CanvasEngineState, action: Action): CanvasEngineSt
       for (const id of action.ids) {
         const shape = newShapes[id];
         if (shape) {
-          newShapes[id] = { ...shape, x: shape.x + action.dx, y: shape.y + action.dy } as CanvasShape;
+          if (shape.type === 'pen') {
+            const pen = shape as PenShape;
+            const newPoints = pen.points.map(p => ({ x: p.x + action.dx, y: p.y + action.dy }));
+            newShapes[id] = {
+              ...pen,
+              x: pen.x + action.dx,
+              y: pen.y + action.dy,
+              points: newPoints,
+              pathData: pointsToSmoothPath(newPoints),
+            } as CanvasShape;
+          } else {
+            newShapes[id] = { ...shape, x: shape.x + action.dx, y: shape.y + action.dy } as CanvasShape;
+          }
         }
       }
       return { ...state, shapes: newShapes };

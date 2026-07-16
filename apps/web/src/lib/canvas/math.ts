@@ -147,8 +147,8 @@ export function isPointInShape(point: Point, shape: CanvasShape, padding: number
     return false;
   }
 
-  // For rectangles and text: simple AABB check is sufficient
-  if (shape.type === 'rectangle' || shape.type === 'text') {
+  // For rectangles, text, and custom shapes: simple AABB check is sufficient
+  if (['rectangle', 'text', 'diamond', 'triangle', 'star', 'hexagon', 'parallelogram', 'trapezoid', 'cylinder', 'callout'].includes(shape.type)) {
     return true;
   }
 
