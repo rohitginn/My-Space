@@ -29,6 +29,11 @@ export const createRoutine = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: await service.createRoutine(userId(req), req.body) });
 });
 
+export const deleteRoutine = asyncHandler(async (req, res) => {
+  await service.deleteRoutine(userId(req), req.params.id);
+  res.status(204).send();
+});
+
 export const applyRoutine = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await service.applyRoutine(userId(req), req.params.id) });
 });

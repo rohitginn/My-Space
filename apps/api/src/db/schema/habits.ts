@@ -1,10 +1,12 @@
 import { integer, pgTable, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
 import { users } from './users.js';
+import { routines } from './routines.js';
 
 export const habits = pgTable('habits', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  routineId: uuid('routine_id').references(() => routines.id, { onDelete: 'set null' }),
   name: varchar('name', { length: 100 }).notNull(),
   icon: varchar('icon', { length: 50 }),
   color: varchar('color', { length: 7 }),

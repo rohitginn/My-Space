@@ -119,6 +119,20 @@ export async function checkAndAwardBadges(userId: string) {
     }
   }
 
+  // 5. Reflective Mind check (journal_7)
+  if (!unlockedTypes.has('journal_7')) {
+    const { getJournalStreak } = await import('../journal/journal.service.js');
+    const journalStreak = await getJournalStreak(userId);
+    if (journalStreak >= 7) {
+      badgesToAward.push({
+        type: 'journal_7',
+        title: 'Reflective Mind',
+        description: 'Journal 7 days in a row.',
+        iconUrl: '/images/badges/journal_7.png',
+      });
+    }
+  }
+
   // Insert newly unlocked badges
   for (const badgeInfo of badgesToAward) {
     await db.insert(badges).values({

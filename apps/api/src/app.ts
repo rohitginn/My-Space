@@ -15,11 +15,15 @@ import { calendarRoutes } from './modules/calendar/calendar.routes.js';
 import { expensesRoutes } from './modules/expenses/expenses.routes.js';
 import { goalsRoutes } from './modules/goals/goals.routes.js';
 import { habitsRoutes } from './modules/habits/habits.routes.js';
+import { inboxRoutes } from './modules/inbox/inbox.routes.js';
+import { insightsRoutes } from './modules/insights/insights.routes.js';
+import { journalRoutes } from './modules/journal/journal.routes.js';
 import { kanbanRoutes } from './modules/kanban/kanban.routes.js';
 import { foldersRoutes } from './modules/notes/folders.routes.js';
 import { notesRoutes } from './modules/notes/notes.routes.js';
 import { pomodoroRoutes } from './modules/pomodoro/pomodoro.routes.js';
 import { searchRoutes } from './modules/search/search.routes.js';
+import { todayRoutes } from './modules/today/today.routes.js';
 import { todosRoutes } from './modules/todos/todos.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { drawingsRoutes } from './modules/drawings/drawings.routes.js';
@@ -57,6 +61,10 @@ export function createApp() {
   app.use('/api/pomodoro', authenticate, pomodoroRoutes);
   app.use('/api/search', authenticate, searchRoutes);
   app.use('/api/drawings', authenticate, drawingsRoutes);
+  app.use('/api/journal', authenticate, journalRoutes);
+  app.use('/api/inbox', authenticate, inboxRoutes);
+  app.use('/api/today', authenticate, todayRoutes);
+  app.use('/api/insights', authenticate, insightsRoutes);
 
   app.all('*', (_req, res) => {
     res.status(404).json({ success: false, error: { code: 'ROUTE_NOT_FOUND', message: 'Route not found' } });

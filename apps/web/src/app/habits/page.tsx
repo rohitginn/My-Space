@@ -65,7 +65,7 @@ export default function HabitsPage() {
   
   // Custom habit and routines state
   const [newHabit, setNewHabit] = useState({ name: '', color: '#10b981', frequency: 'daily', targetCount: 1 });
-  const [newRoutine, setNewRoutine] = useState({ name: '', description: '', habits: [] as any[] });
+  const [newRoutine, setNewRoutine] = useState({ name: '', description: '', purpose: '', durationType: 'weeks', durationValue: 4, habits: [] as any[] });
   const [tempHabit, setTempHabit] = useState({ name: '', color: '#3b82f6', frequency: 'daily', targetCount: 1 });
 
   // ── Queries ────────────────────────────────────────────────
@@ -144,7 +144,17 @@ export default function HabitsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['routines'] });
       setRoutineModalOpen(false);
-      setNewRoutine({ name: '', description: '', habits: [] });
+      setNewRoutine({ name: '', description: '', purpose: '', durationType: 'weeks', durationValue: 4, habits: [] });
+    }
+  });
+
+  const deleteRoutineMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await api.delete(`/habits/routines/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['routines'] });
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
     }
   });
 
@@ -155,6 +165,7 @@ export default function HabitsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['habits'] });
+      queryClient.invalidateQueries({ queryKey: ['routines'] });
       alert('Routine applied! Habits created in your board.');
     }
   });
@@ -227,27 +238,125 @@ export default function HabitsPage() {
               {/* Routine Templates */}
               {routines.length > 0 && (
                 <div>
-                  <h2 className="text-xs uppercase tracking-wider font-bold text-muted mb-4">Routine Templates</h2>
+                  <h2 className="text-xs uppercase tracking-wider font-bold text-muted mb-4">Habit Templates & Routines</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {routines.map((routine) => (
-                      <div key={routine.id} className="bg-surface/50 glass border border-border p-5 rounded-2xl flex flex-col justify-between">
-                        <div>
-                          <h3 className="font-bold text-foreground text-lg mb-1">{routine.name}</h3>
-                          <p className="text-muted text-sm mb-4">{routine.description || 'Pre-configured routines to boost your day.'}</p>
+                    {routines.map((routine) => {
+                      const isPreset = !routine.userId || (typeof routine.id === 'string' && routine.id.startsWith('preset-'));
+                      
+                      // Calculate duration target in days
+                      let totalDays = 0;
+                      if (routine.durationValue && routine.durationType) {
+                        if (routine.durationType === 'days') totalDays = routine.durationValue;
+                        else if (routine.durationType === 'weeks') totalDays = routine.durationValue * 7;
+                        else if (routine.durationType === 'months') totalDays = routine.durationValue * 30;
+                      }
+                      
+                      // Calculate progress
+                      const daysPassed = routine.startDate && routine.isActive
+                        ? Math.max(0, Math.min(totalDays, Math.ceil((new Date().getTime() - new Date(routine.startDate).getTime()) / (1000 * 60 * 60 * 24))))
+                        : 0;
+                      const progressPercent = totalDays > 0 ? Math.round((daysPassed / totalDays) * 100) : 0;
+                      
+                      // Parse nested habits list
+                      let habitsList = [];
+                      try {
+                        habitsList = typeof routine.habitsJson === 'string' ? JSON.parse(routine.habitsJson) : (routine.habitsJson || []);
+                      } catch (e) {
+                        habitsList = [];
+                      }
+
+                      return (
+                        <div key={routine.id} className="bg-surface/50 glass border border-border p-5 rounded-2xl flex flex-col justify-between relative group hover:border-accent-green/30 transition-all duration-300">
+                          {!isPreset && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Are you sure you want to delete this template?')) {
+                                  deleteRoutineMutation.mutate(routine.id);
+                                }
+                              }}
+                              className="absolute top-4 right-4 text-muted hover:text-red-500 transition-colors p-1"
+                              title="Delete Template"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                          <div>
+                            <div className="flex justify-between items-start mb-1.5 pr-6">
+                              <h3 className="font-bold text-foreground text-lg">{routine.name}</h3>
+                            </div>
+                            <p className="text-muted text-sm mb-3.5">{routine.description || 'Custom structured habit template.'}</p>
+                            
+                            {/* Why are you doing this reflection point */}
+                            {routine.purpose && (
+                              <div className="bg-accent-blue/5 border border-accent-blue/10 rounded-xl p-3.5 mb-4 text-xs">
+                                <span className="font-bold text-accent-blue block mb-1 uppercase tracking-wider text-[10px]">Your Purpose ("Why")</span>
+                                <p className="text-foreground/90 font-medium italic">"{routine.purpose}"</p>
+                              </div>
+                            )}
+
+                            {/* Duration / Target Goal */}
+                            {totalDays > 0 && (
+                              <div className="mb-4 text-xs font-semibold text-muted flex items-center justify-between">
+                                <span>Goal Duration: {routine.durationValue} {routine.durationType}</span>
+                                {routine.isActive && (
+                                  <span className="text-accent-green bg-accent-green/10 px-2 py-0.5 rounded-full text-[10px]">
+                                    Active (Day {daysPassed}/{totalDays})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Progress bar */}
+                            {routine.isActive && totalDays > 0 && (
+                              <div className="mb-4">
+                                <div className="flex justify-between text-[11px] font-bold text-foreground mb-1">
+                                  <span>Template Progress</span>
+                                  <span>{progressPercent}%</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-surface border border-border rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-accent-blue to-accent-green transition-all duration-500 ease-out" 
+                                    style={{ width: `${progressPercent}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Habit list preview */}
+                            {habitsList.length > 0 && (
+                              <div className="mb-5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted block mb-2">Habits Included</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {habitsList.map((h: any, i: number) => (
+                                    <span key={i} className="text-[11px] font-medium px-2 py-1 rounded-lg bg-surface border border-border flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: h.color || '#3b82f6' }} />
+                                      {h.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <button
+                            onClick={() => applyRoutineMutation.mutate(routine.id)}
+                            disabled={applyRoutineMutation.isPending}
+                            className={`w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition-all duration-200 ${
+                              routine.isActive 
+                                ? 'bg-accent-green/10 hover:bg-accent-green/20 text-accent-green border border-accent-green/20' 
+                                : 'bg-surface hover:bg-surface-hover border border-border text-foreground'
+                            } disabled:opacity-50`}
+                          >
+                            <Play size={14} className="fill-current" />
+                            {routine.isActive ? 'Re-Apply / Reset Habits' : 'Start Template & Apply'}
+                          </button>
                         </div>
-                        <button
-                          onClick={() => applyRoutineMutation.mutate(routine.id)}
-                          disabled={applyRoutineMutation.isPending}
-                          className="w-full flex items-center justify-center gap-2 bg-surface hover:bg-surface-hover border border-border rounded-xl py-2 text-sm font-semibold transition-colors disabled:opacity-50"
-                        >
-                          <Play size={14} className="fill-current" />
-                          Apply Routine
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
+
 
               {/* Habits list */}
               <div>
@@ -476,6 +585,41 @@ export default function HabitsPage() {
               placeholder="Explain the purpose of this routine"
             />
           </div>
+          <div>
+            <label className="text-sm font-medium text-muted block mb-1">Why are you doing this? (Purpose)</label>
+            <textarea 
+              value={newRoutine.purpose}
+              onChange={e => setNewRoutine({...newRoutine, purpose: e.target.value})}
+              className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-foreground focus:border-accent-green focus:outline-none h-16 resize-none"
+              placeholder="e.g. To build consistency, feel healthier, improve coding skills..."
+              required
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium text-muted block mb-1">Duration Value</label>
+              <input 
+                type="number" 
+                min="1"
+                value={newRoutine.durationValue}
+                onChange={e => setNewRoutine({...newRoutine, durationValue: Math.max(1, parseInt(e.target.value) || 1)})}
+                className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-foreground focus:border-accent-green focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted block mb-1">Duration Unit</label>
+              <select
+                value={newRoutine.durationType}
+                onChange={e => setNewRoutine({...newRoutine, durationType: e.target.value})}
+                className="w-full bg-surface border border-border rounded-lg px-4 py-2 text-foreground focus:border-accent-green focus:outline-none"
+              >
+                <option value="days">Days</option>
+                <option value="weeks">Weeks</option>
+                <option value="months">Months</option>
+              </select>
+            </div>
+          </div>
+
           
           <div className="border-t border-border pt-4">
             <label className="text-sm font-semibold text-foreground block mb-2">Add Habit to Routine</label>
@@ -532,7 +676,7 @@ export default function HabitsPage() {
             <button onClick={() => setRoutineModalOpen(false)} className="px-4 py-2 text-muted hover:text-foreground font-medium">Cancel</button>
             <button 
               onClick={() => createRoutineMutation.mutate(newRoutine)}
-              disabled={createRoutineMutation.isPending || !newRoutine.name || newRoutine.habits.length === 0}
+              disabled={createRoutineMutation.isPending || !newRoutine.name || !newRoutine.purpose || newRoutine.habits.length === 0}
               className="bg-accent-green text-white px-6 py-2 rounded-lg font-medium hover:bg-accent-green-hover transition-colors disabled:opacity-50"
             >
               {createRoutineMutation.isPending ? 'Saving...' : 'Create Routine'}

@@ -148,17 +148,33 @@ export async function listRoutines(userId: string) {
   return [...GLOBAL_PRESETS, ...dbRoutines];
 }
 
-export async function createRoutine(userId: string, input: { name: string; description?: string; habits: any[] }) {
+export async function createRoutine(userId: string, input: { 
+  name: string; 
+  description?: string; 
+  purpose: string;
+  durationType: string;
+  durationValue: number;
+  habits: any[];
+}) {
   const [created] = await db
     .insert(routines)
     .values({
       userId,
       name: input.name,
       description: input.description,
+      purpose: input.purpose,
+      durationType: input.durationType,
+      durationValue: input.durationValue,
+      isActive: true,
+      startDate: new Date(),
       habitsJson: JSON.stringify(input.habits),
     })
     .returning();
   return created;
+}
+
+export async function deleteRoutine(userId: string, id: string) {
+  await db.delete(routines).where(and(eq(routines.id, id), eq(routines.userId, userId)));
 }
 
 export async function applyRoutine(userId: string, id: string) {
@@ -173,6 +189,14 @@ export async function applyRoutine(userId: string, id: string) {
 
   if (!routine) throw new AppError('Routine not found', 404, 'ROUTINE_NOT_FOUND');
 
+  // Activate the routine if it's a custom one and not already active
+  if (routine.id && !routine.isActive) {
+    await db
+      .update(routines)
+      .set({ isActive: true, startDate: new Date() })
+      .where(eq(routines.id, routine.id));
+  }
+
   const habitsList = JSON.parse(routine.habitsJson);
   const createdHabits = [];
 
@@ -181,6 +205,7 @@ export async function applyRoutine(userId: string, id: string) {
       .insert(habits)
       .values({
         userId,
+        routineId: routine.id && routine.id.startsWith('preset-') ? null : routine.id,
         name: h.name,
         icon: h.icon || 'Activity',
         color: h.color || '#0ea5e9',

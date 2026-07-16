@@ -3,6 +3,8 @@ export * from './calendar.js';
 export * from './expenses.js';
 export * from './goals.js';
 export * from './habits.js';
+export * from './inbox.js';
+export * from './journal.js';
 export * from './kanban.js';
 export * from './notes.js';
 export * from './pomodoroSessions.js';
