@@ -11,5 +11,12 @@
   },
   "devDependencies": {
     "typescript": "^5.5.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }
