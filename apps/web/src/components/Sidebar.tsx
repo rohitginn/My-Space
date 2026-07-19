@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, StickyNote, CheckSquare, Layers, Calendar, Settings, User, Target, Activity, Palette } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { LayoutDashboard, StickyNote, CheckSquare, Layers, Calendar, Settings, User, Target, Activity, Palette, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
+import { useEffect, useState } from 'react';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -20,7 +21,25 @@ const navItems = [
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+  const [isSettingsHovered, setIsSettingsHovered] = useState(false);
+
+  // Sync state with localStorage on mount
+  useEffect(() => {
+    setIsMounted(true);
+    const saved = localStorage.getItem('sidebar-collapsed');
+    if (saved) {
+      setIsCollapsed(saved === 'true');
+    }
+  }, []);
+
+  const toggleCollapse = () => {
+    const nextState = !isCollapsed;
+    setIsCollapsed(nextState);
+    localStorage.setItem('sidebar-collapsed', String(nextState));
+  };
 
   if (pathname === '/' || pathname === '/login' || pathname === '/register') {
     return null;
@@ -83,13 +102,80 @@ export default function Sidebar() {
             </p>
           </div>
         )}
-        <Link
-          href="/settings"
-          className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-muted hover:text-foreground hover:bg-surface-glass"
+        <motion.div
+          onMouseEnter={() => setIsSettingsHovered(true)}
+          onMouseLeave={() => setIsSettingsHovered(false)}
         >
-          <Settings size={20} />
-          <span className="font-medium">Settings</span>
-        </Link>
+          <Link
+            href="/settings"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 text-muted hover:text-foreground hover:bg-surface-glass mb-2"
+          >
+            <motion.div
+              animate={{ rotate: isSettingsHovered ? 90 : 0 }}
+              transition={{ type: "spring", stiffness: 200, damping: 10 }}
+            >
+              <Settings size={20} />
+            </motion.div>
+            <AnimatePresence mode="wait">
+              {!isCollapsed && (
+                <motion.span
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="font-medium whitespace-nowrap overflow-hidden text-sm"
+                >
+                  Settings
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </Link>
+        </motion.div>
+
+        {/* User profile block */}
+        <AnimatePresence mode="wait">
+          {user && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between gap-3 overflow-hidden"
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-8 h-8 rounded-full bg-zinc-800 border border-border/40 flex items-center justify-center text-zinc-300 font-bold text-xs shrink-0 select-none">
+                  {user.displayName ? user.displayName.slice(0, 2).toUpperCase() : <User size={14} />}
+                </div>
+                {!isCollapsed && (
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-semibold text-foreground truncate">{user.displayName}</span>
+                    <span className="text-[10px] text-zinc-500 truncate">{user.email}</span>
+                  </div>
+                )}
+              </div>
+              {!isCollapsed && (
+                <button
+                  onClick={logout}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                  title="Log Out"
+                >
+                  <LogOut size={14} />
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mini Log Out button when sidebar is collapsed */}
+        {isCollapsed && (
+          <motion.div whileTap={{ scale: 0.95 }} className="w-full mt-2">
+            <button
+              onClick={logout}
+              className="flex items-center justify-center w-full py-3 rounded-xl transition-all text-muted hover:text-red-400 hover:bg-red-500/10"
+              title="Log Out"
+            >
+              <LogOut size={16} />
+            </button>
+          </motion.div>
+        )}
       </div>
     </aside>
   );

@@ -6,8 +6,9 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Check, Loader2, Activity, Trash2, TrendingUp, Award, Play } from 'lucide-react';
+import { Plus, Check, Loader2, Activity, Trash2, TrendingUp, Award, Play, PieChart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import api from '@/lib/api';
 import { Modal } from '@/components/Modal';
 import { useDialog } from '@/components/DialogProvider';
@@ -58,7 +59,7 @@ const ALL_BADGES = [
 export default function HabitsPage() {
   const queryClient = useQueryClient();
   const { confirm, alert } = useDialog();
-  const [activeTab, setActiveTab] = useState<'habits' | 'badges'>('habits');
+  const [activeTab, setActiveTab] = useState<'habits' | 'badges' | 'analytics'>('habits');
   const [modalOpen, setModalOpen] = useState(false);
   const [routineModalOpen, setRoutineModalOpen] = useState(false);
   const [selectedHabitId, setSelectedHabitId] = useState<string | null>(null);
@@ -212,6 +213,13 @@ export default function HabitsPage() {
           <Award size={16} />
           Achievements ({unlockedBadges.length}/{ALL_BADGES.length})
         </button>
+        <button
+          onClick={() => setActiveTab('analytics')}
+          className={`px-6 py-3 font-semibold text-sm border-b-2 transition-all flex items-center gap-2 ${activeTab === 'analytics' ? 'border-accent-green text-accent-green' : 'border-transparent text-muted hover:text-foreground'}`}
+        >
+          <PieChart size={16} />
+          Analytics
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto z-10">
@@ -349,7 +357,7 @@ export default function HabitsPage() {
                 )}
               </div>
             </motion.div>
-          ) : (
+          ) : activeTab === 'badges' ? (
             <motion.div
               key="badges-tab"
               initial={{ opacity: 0, y: 10 }}
@@ -388,6 +396,72 @@ export default function HabitsPage() {
                   </div>
                 );
               })}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="analytics-tab"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="space-y-8"
+            >
+              <h2 className="text-xs uppercase tracking-wider font-bold text-muted mb-4">Habit Consistency Analytics</h2>
+              
+              {(() => {
+                if (habits.length === 0) return <div className="text-muted text-center p-8 bg-surface border border-dashed border-border rounded-xl">No habit data available for analytics. Create a habit to begin.</div>;
+                
+                const sorted = [...habits].sort((a, b) => (b.totalCompleted || 0) - (a.totalCompleted || 0));
+                const mostDone = sorted[0];
+                const leastDone = sorted[sorted.length - 1];
+                const chartData = sorted.map(h => ({ name: h.name, completed: h.totalCompleted || 0, color: h.color || '#10b981' }));
+
+                return (
+                  <div className="space-y-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="bg-surface border border-border p-6 rounded-2xl flex items-center gap-5 hover:border-accent-green/30 transition-colors">
+                        <div className="w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg" style={{ backgroundColor: mostDone.color || '#10b981' }}>
+                          <Activity size={24} className="mb-1" />
+                        </div>
+                        <div>
+                          <h3 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Most Completed</h3>
+                          <p className="text-xl font-bold text-foreground">{mostDone.name}</p>
+                          <p className="text-sm text-muted font-medium">{mostDone.totalCompleted || 0} times total</p>
+                        </div>
+                      </div>
+                      <div className="bg-surface border border-border p-6 rounded-2xl flex items-center gap-5 hover:border-red-500/30 transition-colors">
+                        <div className="w-16 h-16 rounded-2xl flex flex-col items-center justify-center text-white shadow-lg opacity-80 grayscale-[30%]" style={{ backgroundColor: leastDone.color || '#ef4444' }}>
+                          <TrendingUp size={24} className="mb-1 rotate-180" />
+                        </div>
+                        <div>
+                          <h3 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-1">Needs Attention</h3>
+                          <p className="text-xl font-bold text-foreground">{leastDone.name}</p>
+                          <p className="text-sm text-muted font-medium">{leastDone.totalCompleted || 0} times total</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-surface border border-border p-6 rounded-2xl h-[400px]">
+                      <h3 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-6">Completion Frequency Across All Habits</h3>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 20 }}>
+                          <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                          <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                          <Tooltip 
+                            cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
+                            contentStyle={{ borderRadius: '12px', backgroundColor: '#18181b', border: '1px solid #27272a' }} 
+                            itemStyle={{ color: '#fff', fontWeight: 'bold' }}
+                          />
+                          <Bar dataKey="completed" radius={[6, 6, 0, 0]}>
+                            {chartData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                );
+              })()}
             </motion.div>
           )}
         </AnimatePresence>

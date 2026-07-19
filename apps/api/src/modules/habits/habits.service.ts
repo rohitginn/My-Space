@@ -48,7 +48,7 @@ export async function listHabits(userId: string) {
       }
     }
     
-    result.push({ ...habit, currentStreak: calculateStreak(logs, habit.targetCount || 1), todayCount });
+    result.push({ ...habit, currentStreak: calculateStreak(logs, habit.targetCount || 1), todayCount, totalCompleted: logs.length });
   }
   return result;
 }
