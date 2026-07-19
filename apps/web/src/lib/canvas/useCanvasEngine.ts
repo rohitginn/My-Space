@@ -73,7 +73,8 @@ type Action =
   | { type: 'BRING_TO_FRONT'; ids: string[] }
   | { type: 'SEND_TO_BACK'; ids: string[] }
   | { type: 'LOAD_DOCUMENT'; doc: CanvasDocument }
-  | { type: 'RESTORE_SHAPES'; shapes: Record<string, CanvasShape> };
+  | { type: 'RESTORE_SHAPES'; shapes: Record<string, CanvasShape> }
+  | { type: 'CLEAR_CANVAS' };
 
 // ── Reducer ─────────────────────────────────────────────────
 
@@ -192,6 +193,9 @@ function canvasReducer(state: CanvasEngineState, action: Action): CanvasEngineSt
     case 'RESTORE_SHAPES':
       return { ...state, shapes: action.shapes };
 
+    case 'CLEAR_CANVAS':
+      return { ...state, shapes: {}, selectedIds: [] };
+
     default:
       return state;
   }
@@ -253,6 +257,7 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
   const bringToFront = useCallback((ids: string[]) => dispatch({ type: 'BRING_TO_FRONT', ids }), []);
   const sendToBack = useCallback((ids: string[]) => dispatch({ type: 'SEND_TO_BACK', ids }), []);
   const loadDocument = useCallback((doc: CanvasDocument) => dispatch({ type: 'LOAD_DOCUMENT', doc }), []);
+  const clearCanvas = useCallback(() => dispatch({ type: 'CLEAR_CANVAS' }), []);
 
   /** Get the current document state for serialization/autosave */
   const getDocument = useCallback((): CanvasDocument => {
@@ -281,6 +286,7 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
     undo,
     redo,
     loadDocument,
+    clearCanvas,
     getDocument,
   };
 }

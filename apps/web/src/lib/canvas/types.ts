@@ -40,8 +40,7 @@ export type ShapeType =
   | 'cylinder'
   | 'callout';
 
-/** All available tools (includes non-shape tools) */
-export type ToolType = ShapeType | 'select' | 'pan';
+export type ToolType = ShapeType | 'select' | 'pan' | 'eraser';
 
 /** Stroke rendering style */
 export type StrokeStyleType = 'solid' | 'dashed' | 'dotted';

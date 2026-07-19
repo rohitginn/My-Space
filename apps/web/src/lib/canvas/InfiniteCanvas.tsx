@@ -5,7 +5,7 @@
 'use client';
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { Maximize2, Minimize2, ZoomIn, ZoomOut, Compass, Download } from 'lucide-react';
 import type {
   Point, CanvasShape, PenShape, RectangleShape,
   EllipseShape, LineShape, ArrowShape, TextShape,
@@ -44,6 +44,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
     originalShapes: Record<string, CanvasShape>;
   } | null>(null);
   const activeShapeIdRef = useRef<string | null>(null);
+  const isErasingRef = useRef(false);
 
   // For text editing overlay
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
@@ -80,6 +81,148 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
+
+  // ── Fit to Screen ──────────────────────────────────────────
+  const fitToScreen = useCallback(() => {
+    const shapeList = Object.values(state.shapes);
+    if (shapeList.length === 0) {
+      actions.setCamera({ x: 0, y: 0, zoom: 1 });
+      return;
+    }
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const shape of shapeList) {
+      const bounds = getShapeBounds(shape);
+      if (bounds.minX < minX) minX = bounds.minX;
+      if (bounds.minY < minY) minY = bounds.minY;
+      if (bounds.maxX > maxX) maxX = bounds.maxX;
+      if (bounds.maxY > maxY) maxY = bounds.maxY;
+    }
+
+    const rect = getRect();
+    const padding = 60;
+    const contentW = maxX - minX;
+    const contentH = maxY - minY;
+
+    if (contentW <= 0 || contentH <= 0) {
+      actions.setCamera({ x: 0, y: 0, zoom: 1 });
+      return;
+    }
+
+    const zoomX = (rect.width - padding * 2) / contentW;
+    const zoomY = (rect.height - padding * 2) / contentH;
+    const bestZoom = Math.max(0.1, Math.min(10, Math.min(zoomX, zoomY)));
+
+    const centerX = minX + contentW / 2;
+    const centerY = minY + contentH / 2;
+
+    const newCamX = rect.width / 2 - centerX * bestZoom;
+    const newCamY = rect.height / 2 - centerY * bestZoom;
+
+    actions.setCamera({ x: newCamX, y: newCamY, zoom: bestZoom });
+  }, [state.shapes, actions, getRect]);
+
+  // ── Export as SVG ──────────────────────────────────────────
+  const exportToSVG = useCallback(() => {
+    const shapeList = Object.values(state.shapes);
+    if (shapeList.length === 0) return;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const shape of shapeList) {
+      const bounds = getShapeBounds(shape);
+      if (bounds.minX < minX) minX = bounds.minX;
+      if (bounds.minY < minY) minY = bounds.minY;
+      if (bounds.maxX > maxX) maxX = bounds.maxX;
+      if (bounds.maxY > maxY) maxY = bounds.maxY;
+    }
+
+    const width = maxX - minX + 80;
+    const height = maxY - minY + 80;
+    const viewX = minX - 40;
+    const viewY = minY - 40;
+
+    const groupEl = svgRef.current?.querySelector('g');
+    if (!groupEl) return;
+
+    const clone = groupEl.cloneNode(true) as SVGGElement;
+    clone.removeAttribute('transform');
+
+    const overlay = clone.querySelector('.selection-overlay');
+    if (overlay) overlay.remove();
+
+    const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewX} ${viewY} ${width} ${height}" width="${width}" height="${height}">
+        <rect width="100%" height="100%" fill="#0f172a" />
+        ${clone.innerHTML}
+      </svg>
+    `.trim();
+
+    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `myspace-drawing-${Date.now()}.svg`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }, [state.shapes]);
+
+  // ── Export as PNG ──────────────────────────────────────────
+  const exportToPNG = useCallback(() => {
+    const shapeList = Object.values(state.shapes);
+    if (shapeList.length === 0) return;
+
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const shape of shapeList) {
+      const bounds = getShapeBounds(shape);
+      if (bounds.minX < minX) minX = bounds.minX;
+      if (bounds.minY < minY) minY = bounds.minY;
+      if (bounds.maxX > maxX) maxX = bounds.maxX;
+      if (bounds.maxY > maxY) maxY = bounds.maxY;
+    }
+
+    const width = maxX - minX + 80;
+    const height = maxY - minY + 80;
+    const viewX = minX - 40;
+    const viewY = minY - 40;
+
+    const groupEl = svgRef.current?.querySelector('g');
+    if (!groupEl) return;
+
+    const clone = groupEl.cloneNode(true) as SVGGElement;
+    clone.removeAttribute('transform');
+
+    const overlay = clone.querySelector('.selection-overlay');
+    if (overlay) overlay.remove();
+
+    const svgString = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewX} ${viewY} ${width} ${height}" width="${width}" height="${height}">
+        <rect width="100%" height="100%" fill="#0f172a" />
+        ${clone.innerHTML}
+      </svg>
+    `.trim();
+
+    const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
+    const image = new Image();
+
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(image, 0, 0);
+        const pngUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = `myspace-drawing-${Date.now()}.png`;
+        link.click();
+      }
+      URL.revokeObjectURL(svgUrl);
+    };
+
+    image.src = svgUrl;
+  }, [state.shapes]);
 
   // ── Shape creation helpers ─────────────────────────────────
   const createShape = useCallback(
@@ -199,6 +342,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         l: 'line',
         a: 'arrow',
         t: 'text',
+        e: 'eraser',
       };
       if (!e.metaKey && !e.ctrlKey && !e.altKey && toolShortcuts[e.key] && !editingTextId) {
         actions.setTool(toolShortcuts[e.key]);
@@ -242,6 +386,25 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         setEditingTextId(shape.id);
         setTextInputValue('');
         setTimeout(() => textInputRef.current?.focus(), 50);
+        return;
+      }
+
+      // Eraser tool
+      if (tool === 'eraser') {
+        engine.pushHistory();
+        isErasingRef.current = true;
+        svgRef.current?.setPointerCapture(e.pointerId);
+
+        // Perform immediate hit-test on down
+        const toDelete: string[] = [];
+        for (const shape of Object.values(state.shapes)) {
+          if (isPointInRotatedShape(worldPt, shape, 12)) {
+            toDelete.push(shape.id);
+          }
+        }
+        if (toDelete.length > 0) {
+          actions.deleteShapes(toDelete);
+        }
         return;
       }
 
@@ -316,6 +479,20 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
       }
 
       const worldPt = getWorldPoint(e);
+
+      // Erasing
+      if (isErasingRef.current) {
+        const toDelete: string[] = [];
+        for (const shape of Object.values(state.shapes)) {
+          if (isPointInRotatedShape(worldPt, shape, 16)) {
+            toDelete.push(shape.id);
+          }
+        }
+        if (toDelete.length > 0) {
+          actions.deleteShapes(toDelete);
+        }
+        return;
+      }
 
       // Drawing
       if (state.isDrawing && activeShapeIdRef.current) {
@@ -420,6 +597,13 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
       if (state.isPanning) {
         actions.setPanning(false);
         panStartRef.current = null;
+        return;
+      }
+
+      // Finish erasing
+      if (isErasingRef.current) {
+        isErasingRef.current = false;
+        onChanged?.();
         return;
       }
 
@@ -741,18 +925,83 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         hasSelection={state.selectedIds.length > 0}
       />
 
-      {/* Zoom & Fullscreen Panel */}
-      <div className="absolute top-4 right-4 z-30 flex items-center gap-2 bg-surface/80 backdrop-blur border border-border/40 rounded-lg p-1.5 shadow-md">
-        <div className="px-2 py-0.5 text-xs text-muted font-medium">
+      {/* Canvas Utilities & Controls Panel */}
+      <div className="absolute top-4 right-4 z-30 flex items-center gap-1 bg-surface/85 backdrop-blur-xl border border-border/50 rounded-xl p-1 shadow-lg pointer-events-auto">
+        {/* Zoom Out */}
+        <button
+          onClick={() => actions.setCamera({ ...state.camera, zoom: Math.max(0.1, state.camera.zoom - 0.15) })}
+          className="p-1.5 text-muted hover:text-foreground hover:bg-surface-hover rounded-lg transition-colors"
+          title="Zoom Out"
+        >
+          <ZoomOut size={15} />
+        </button>
+
+        {/* Zoom Label */}
+        <button
+          onClick={() => actions.setCamera({ ...state.camera, zoom: 1 })}
+          className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-surface-hover rounded-lg font-semibold transition-colors"
+          title="Reset Zoom to 100%"
+        >
           {Math.round(state.camera.zoom * 100)}%
+        </button>
+
+        {/* Zoom In */}
+        <button
+          onClick={() => actions.setCamera({ ...state.camera, zoom: Math.min(10, state.camera.zoom + 0.15) })}
+          className="p-1.5 text-muted hover:text-foreground hover:bg-surface-hover rounded-lg transition-colors"
+          title="Zoom In"
+        >
+          <ZoomIn size={15} />
+        </button>
+
+        <div className="w-px h-5 bg-border/40 mx-0.5" />
+
+        {/* Fit to Screen */}
+        <button
+          onClick={fitToScreen}
+          className="p-1.5 text-muted hover:text-foreground hover:bg-surface-hover rounded-lg transition-colors"
+          title="Fit to Screen"
+        >
+          <Compass size={15} />
+        </button>
+
+        <div className="w-px h-5 bg-border/40 mx-0.5" />
+
+        {/* Export Dropdown Trigger */}
+        <div className="relative group">
+          <button
+            className="p-1.5 text-muted hover:text-foreground hover:bg-surface-hover rounded-lg transition-colors flex items-center gap-0.5"
+            title="Export Drawing"
+          >
+            <Download size={15} />
+          </button>
+          
+          {/* Dropdown Options */}
+          <div className="absolute right-0 top-full mt-1.5 hidden group-hover:block bg-surface/95 backdrop-blur border border-border/50 rounded-xl p-1 shadow-xl min-w-[120px]">
+            <button
+              onClick={exportToPNG}
+              className="w-full text-left px-3 py-1.5 text-xs text-muted hover:text-foreground hover:bg-surface-hover rounded-lg font-medium transition-colors"
+            >
+              Export as PNG
+            </button>
+            <button
+              onClick={exportToSVG}
+              className="w-full text-left px-3 py-1.5 text-xs text-muted hover:text-foreground hover:bg-surface-hover rounded-lg font-medium transition-colors"
+            >
+              Export as SVG
+            </button>
+          </div>
         </div>
-        <div className="w-px h-4 bg-border/40" />
+
+        <div className="w-px h-5 bg-border/40 mx-0.5" />
+
+        {/* Fullscreen */}
         <button
           onClick={toggleFullscreen}
-          className="p-1 text-muted hover:text-foreground hover:bg-surface-hover rounded transition-colors"
+          className="p-1.5 text-muted hover:text-foreground hover:bg-surface-hover rounded-lg transition-colors"
           title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
         >
-          {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+          {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
       </div>
     </div>

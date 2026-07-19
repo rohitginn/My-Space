@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   MousePointer2, Hand, Pencil, Minus,
   ArrowUpRight, Type, Undo2, Redo2, Trash2,
-  ArrowUpToLine, ArrowDownToLine, Shapes, ChevronDown
+  ArrowUpToLine, ArrowDownToLine, Shapes, ChevronDown, Eraser
 } from 'lucide-react';
 import type { ToolType, ToolStyle, StrokeStyleType, FillStyleType } from './types';
 
@@ -141,6 +141,15 @@ export function CanvasToolbar({
           className={`p-2.5 rounded-xl transition-colors ${activeTool === 'pen' ? 'bg-accent-blue text-white shadow-lg' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}
         >
           <Pencil size={18} />
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
+          onClick={() => onToolChange('eraser')}
+          title="Eraser (E)"
+          className={`p-2.5 rounded-xl transition-colors ${activeTool === 'eraser' ? 'bg-accent-blue text-white shadow-lg' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}
+        >
+          <Eraser size={18} />
         </motion.button>
 
         {/* Shape Library Trigger */}
