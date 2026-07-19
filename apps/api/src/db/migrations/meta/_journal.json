@@ -15,6 +15,13 @@
       "when": 1784221719834,
       "tag": "0001_uneven_smasher",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784465954193,
+      "tag": "0002_tense_kabuki",
+      "breakpoints": true
     }
   ]
 }

@@ -147,8 +147,33 @@ export function isPointInShape(point: Point, shape: CanvasShape, padding: number
     return false;
   }
 
+  const isFilled = shape.fillStyle !== 'none' && shape.fill && shape.fill !== 'transparent' && shape.fill !== 'none';
+
   // For rectangles, text, and custom shapes: simple AABB check is sufficient
   if (['rectangle', 'text', 'diamond', 'triangle', 'star', 'hexagon', 'parallelogram', 'trapezoid', 'cylinder', 'callout'].includes(shape.type)) {
+    if (shape.type === 'text') return true;
+
+    if (shape.type === 'rectangle') {
+      if (isFilled) return true;
+      // Hollow rectangle: must be clicked close to the borders
+      const borderPadding = Math.max(12, padding + shape.strokeWidth);
+      const nearLeft = Math.abs(point.x - shape.x) <= borderPadding;
+      const nearRight = Math.abs(point.x - (shape.x + shape.width)) <= borderPadding;
+      const nearTop = Math.abs(point.y - shape.y) <= borderPadding;
+      const nearBottom = Math.abs(point.y - (shape.y + shape.height)) <= borderPadding;
+      return nearLeft || nearRight || nearTop || nearBottom;
+    }
+
+    if (!isFilled) {
+      // Hollow custom shapes: must be clicked close to the bounding box borders
+      const borderPadding = Math.max(12, padding + shape.strokeWidth);
+      const nearLeft = Math.abs(point.x - bounds.minX) <= borderPadding;
+      const nearRight = Math.abs(point.x - bounds.maxX) <= borderPadding;
+      const nearTop = Math.abs(point.y - bounds.minY) <= borderPadding;
+      const nearBottom = Math.abs(point.y - bounds.maxY) <= borderPadding;
+      return nearLeft || nearRight || nearTop || nearBottom;
+    }
+
     return true;
   }
 
@@ -160,7 +185,23 @@ export function isPointInShape(point: Point, shape: CanvasShape, padding: number
     const ry = shape.height / 2 + padding;
     const dx = point.x - cx;
     const dy = point.y - cy;
-    return (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) <= 1;
+    
+    const val = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
+    
+    if (isFilled) {
+      return val <= 1;
+    } else {
+      // Hollow ellipse: point must be near the perimeter
+      const outerRx = rx + 8;
+      const outerRy = ry + 8;
+      const innerRx = Math.max(0, rx - 8);
+      const innerRy = Math.max(0, ry - 8);
+      
+      const inOuter = (dx * dx) / (outerRx * outerRx) + (dy * dy) / (outerRy * outerRy) <= 1;
+      const inInner = innerRx > 0 && innerRy > 0 && (dx * dx) / (innerRx * innerRx) + (dy * dy) / (innerRy * innerRy) <= 1;
+      
+      return inOuter && !inInner;
+    }
   }
 
   // For lines and arrows: check distance from the line segment

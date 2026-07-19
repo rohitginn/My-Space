@@ -174,54 +174,23 @@ function RectRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const rect = shape as RectangleShape;
   const w = Math.abs(rect.width);
   const h = Math.abs(rect.height);
-
-  const drawable = useMemo(() => {
-    if (w < 1 || h < 1) return null;
-    return rc.rectangle(rect.x, rect.y, w, h, getRoughOptions(shape));
-  }, [rect.x, rect.y, w, h, shape.color, shape.strokeWidth, shape.fill, shape.fillStyle, shape.strokeStyle]);
-
-  if (!drawable) return null;
   const strokeDash = getStrokeDashArray(shape.strokeStyle);
-
-  // If rounded corners, fall back to clean SVG rect
-  if (rect.borderRadius > 0) {
-    return (
-      <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
-        <rect
-          x={rect.x}
-          y={rect.y}
-          width={w}
-          height={h}
-          rx={rect.borderRadius}
-          ry={rect.borderRadius}
-          fill={shape.fillStyle !== 'none' ? shape.fill : 'transparent'}
-          stroke={rect.color}
-          strokeWidth={rect.strokeWidth}
-          opacity={rect.opacity}
-          strokeDasharray={strokeDash}
-        />
-      </RotationWrapper>
-    );
-  }
+  const hasFill = shape.fillStyle !== 'none' && shape.fill && shape.fill !== 'transparent';
 
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
-      {/* Invisible hit target for pointer events */}
       <rect
         x={rect.x}
         y={rect.y}
         width={w}
         height={h}
-        fill="transparent"
-        stroke="none"
-        pointerEvents="fill"
-      />
-      <RoughPaths
-        drawable={drawable}
-        color={rect.color}
+        rx={rect.borderRadius}
+        ry={rect.borderRadius}
+        fill={hasFill ? shape.fill : 'transparent'}
+        stroke={rect.color}
         strokeWidth={rect.strokeWidth}
         opacity={rect.opacity}
-        strokeDash={strokeDash}
+        strokeDasharray={strokeDash}
       />
     </RotationWrapper>
   );
@@ -233,24 +202,21 @@ function EllipseRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const h = Math.abs(ellipse.height);
   const cx = ellipse.x + w / 2;
   const cy = ellipse.y + h / 2;
-
-  const drawable = useMemo(() => {
-    if (w < 1 || h < 1) return null;
-    return rc.ellipse(cx, cy, w, h, getRoughOptions(shape));
-  }, [cx, cy, w, h, shape.color, shape.strokeWidth, shape.fill, shape.fillStyle, shape.strokeStyle]);
-
-  if (!drawable) return null;
   const strokeDash = getStrokeDashArray(shape.strokeStyle);
+  const hasFill = shape.fillStyle !== 'none' && shape.fill && shape.fill !== 'transparent';
 
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
-      <ellipse cx={cx} cy={cy} rx={w / 2} ry={h / 2} fill="transparent" stroke="none" pointerEvents="fill" />
-      <RoughPaths
-        drawable={drawable}
-        color={ellipse.color}
+      <ellipse
+        cx={cx}
+        cy={cy}
+        rx={w / 2}
+        ry={h / 2}
+        fill={hasFill ? shape.fill : 'transparent'}
+        stroke={ellipse.color}
         strokeWidth={ellipse.strokeWidth}
         opacity={ellipse.opacity}
-        strokeDash={strokeDash}
+        strokeDasharray={strokeDash}
       />
     </RotationWrapper>
   );
@@ -260,23 +226,19 @@ function LineRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const line = shape as LineShape;
   const x2 = line.x + line.width;
   const y2 = line.y + line.height;
-
-  const drawable = useMemo(() => {
-    return rc.line(line.x, line.y, x2, y2, getRoughOptions(shape));
-  }, [line.x, line.y, x2, y2, shape.color, shape.strokeWidth, shape.strokeStyle]);
-
   const strokeDash = getStrokeDashArray(shape.strokeStyle);
 
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
-      {/* Invisible wide line for easy selection */}
-      <line x1={line.x} y1={line.y} x2={x2} y2={y2} stroke="transparent" strokeWidth={Math.max(12, line.strokeWidth + 8)} />
-      <RoughPaths
-        drawable={drawable}
-        color={line.color}
-        strokeWidth={Math.max(line.strokeWidth, 2)}
+      <line
+        x1={line.x}
+        y1={line.y}
+        x2={x2}
+        y2={y2}
+        stroke={line.color}
+        strokeWidth={line.strokeWidth}
         opacity={line.opacity}
-        strokeDash={strokeDash}
+        strokeDasharray={strokeDash}
       />
     </RotationWrapper>
   );
@@ -289,39 +251,36 @@ function ArrowRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const x2 = arrow.x + arrow.width;
   const y2 = arrow.y + arrow.height;
   const strokeDash = getStrokeDashArray(shape.strokeStyle);
-  const options = getRoughOptions(shape);
 
   const headLen = 12 + arrow.strokeWidth * 2;
   const arrowHead = arrow.arrowHead || 'end';
   const arrowStyle = arrow.arrowStyle || 'straight';
 
-  const { pathDrawable, startAngle, endAngle, startPt, endPt } = useMemo(() => {
-    let pStart = { x: x1, y: y1 };
-    let pEnd = { x: x2, y: y2 };
-    let drawable;
+  const { pathD, startAngle, endAngle } = useMemo(() => {
+    let dStr = '';
     let sAngle = 0;
     let eAngle = 0;
 
     if (arrowStyle === 'elbow') {
       const midX = x2;
       const midY = y1;
-      drawable = rc.linearPath([[x1, y1], [midX, midY], [x2, y2]], options);
+      dStr = `M ${x1} ${y1} L ${midX} ${midY} L ${x2} ${y2}`;
       sAngle = Math.atan2(midY - y1, midX - x1);
       eAngle = Math.atan2(y2 - midY, x2 - midX);
     } else if (arrowStyle === 'curved') {
       const cx = (x1 + x2) / 2 - (y2 - y1) * 0.15;
       const cy = (y1 + y2) / 2 + (x2 - x1) * 0.15;
-      drawable = rc.curve([[x1, y1], [cx, cy], [x2, y2]], options);
+      dStr = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
       sAngle = Math.atan2(cy - y1, cx - x1);
       eAngle = Math.atan2(y2 - cy, x2 - cx);
     } else {
-      drawable = rc.line(x1, y1, x2, y2, options);
+      dStr = `M ${x1} ${y1} L ${x2} ${y2}`;
       sAngle = Math.atan2(y2 - y1, x2 - x1);
       eAngle = sAngle;
     }
 
-    return { pathDrawable: drawable, startAngle: sAngle, endAngle: eAngle, startPt: pStart, endPt: pEnd };
-  }, [x1, y1, x2, y2, arrowStyle, shape.color, shape.strokeWidth, shape.fill, shape.fillStyle, shape.strokeStyle]);
+    return { pathD: dStr, startAngle: sAngle, endAngle: eAngle };
+  }, [x1, y1, x2, y2, arrowStyle]);
 
   const getArrowHeadPoints = (pt: Point, angle: number) => {
     const ax = pt.x - headLen * Math.cos(angle - Math.PI / 6);
@@ -333,24 +292,24 @@ function ArrowRenderer({ shape, onPointerDown }: ShapeRendererProps) {
 
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={Math.max(12, arrow.strokeWidth + 8)} />
-      <RoughPaths
-        drawable={pathDrawable}
-        color={arrow.color}
-        strokeWidth={Math.max(arrow.strokeWidth, 2)}
+      <path
+        d={pathD}
+        fill="none"
+        stroke={arrow.color}
+        strokeWidth={arrow.strokeWidth}
         opacity={arrow.opacity}
-        strokeDash={strokeDash}
+        strokeDasharray={strokeDash}
       />
       {(arrowHead === 'start' || arrowHead === 'both') && (
         <polygon
-          points={getArrowHeadPoints(startPt, startAngle + Math.PI)}
+          points={getArrowHeadPoints({ x: x1, y: y1 }, startAngle + Math.PI)}
           fill={arrow.color}
           opacity={arrow.opacity}
         />
       )}
       {(arrowHead === 'end' || arrowHead === 'both') && (
         <polygon
-          points={getArrowHeadPoints(endPt, endAngle)}
+          points={getArrowHeadPoints({ x: x2, y: y2 }, endAngle)}
           fill={arrow.color}
           opacity={arrow.opacity}
         />
@@ -409,10 +368,12 @@ function PolygonRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const rect = shape;
   const w = Math.abs(rect.width);
   const h = Math.abs(rect.height);
+  const strokeDash = getStrokeDashArray(shape.strokeStyle);
+  const hasFill = shape.fillStyle !== 'none' && shape.fill && shape.fill !== 'transparent';
 
-  const drawable = useMemo(() => {
-    if (w < 1 || h < 1) return null;
-    let points: [number, number][] = [];
+  const pointsStr = useMemo(() => {
+    if (w < 1 || h < 1) return '';
+    let pts: [number, number][] = [];
     const x = rect.x;
     const y = rect.y;
     const cx = x + w / 2;
@@ -422,10 +383,10 @@ function PolygonRenderer({ shape, onPointerDown }: ShapeRendererProps) {
 
     switch (shape.type) {
       case 'diamond':
-        points = [[x + w / 2, y], [x + w, y + h / 2], [x + w / 2, y + h], [x, y + h / 2]];
+        pts = [[x + w / 2, y], [x + w, y + h / 2], [x + w / 2, y + h], [x, y + h / 2]];
         break;
       case 'triangle':
-        points = [[x + w / 2, y], [x + w, y + h], [x, y + h]];
+        pts = [[x + w / 2, y], [x + w, y + h], [x, y + h]];
         break;
       case 'star':
         const irx = rx * 0.4;
@@ -434,23 +395,23 @@ function PolygonRenderer({ shape, onPointerDown }: ShapeRendererProps) {
           const angle = (i * Math.PI) / 5 - Math.PI / 2;
           const rX = i % 2 === 0 ? rx : irx;
           const rY = i % 2 === 0 ? ry : iry;
-          points.push([cx + rX * Math.cos(angle), cy + rY * Math.sin(angle)]);
+          pts.push([cx + rX * Math.cos(angle), cy + rY * Math.sin(angle)]);
         }
         break;
       case 'hexagon':
         for (let i = 0; i < 6; i++) {
           const angle = (i * Math.PI) / 3 - Math.PI / 2;
-          points.push([cx + rx * Math.cos(angle), cy + ry * Math.sin(angle)]);
+          pts.push([cx + rx * Math.cos(angle), cy + ry * Math.sin(angle)]);
         }
         break;
       case 'parallelogram':
-        points = [[x + w * 0.2, y], [x + w, y], [x + w * 0.8, y + h], [x, y + h]];
+        pts = [[x + w * 0.2, y], [x + w, y], [x + w * 0.8, y + h], [x, y + h]];
         break;
       case 'trapezoid':
-        points = [[x + w * 0.2, y], [x + w * 0.8, y], [x + w, y + h], [x, y + h]];
+        pts = [[x + w * 0.2, y], [x + w * 0.8, y], [x + w, y + h], [x, y + h]];
         break;
       case 'callout':
-        points = [
+        pts = [
           [x, y],
           [x + w, y],
           [x + w, y + h * 0.8],
@@ -463,21 +424,20 @@ function PolygonRenderer({ shape, onPointerDown }: ShapeRendererProps) {
       default:
         break;
     }
-    return rc.polygon(points, getRoughOptions(shape));
-  }, [rect.x, rect.y, w, h, shape.type, shape.color, shape.strokeWidth, shape.fill, shape.fillStyle, shape.strokeStyle]);
+    return pts.map(p => `${p[0]},${p[1]}`).join(' ');
+  }, [rect.x, rect.y, w, h, shape.type]);
 
-  if (!drawable) return null;
-  const strokeDash = getStrokeDashArray(shape.strokeStyle);
+  if (!pointsStr) return null;
 
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
-      <rect x={rect.x} y={rect.y} width={w} height={h} fill="transparent" stroke="none" pointerEvents="fill" />
-      <RoughPaths
-        drawable={drawable}
-        color={rect.color}
+      <polygon
+        points={pointsStr}
+        fill={hasFill ? shape.fill : 'transparent'}
+        stroke={rect.color}
         strokeWidth={rect.strokeWidth}
         opacity={rect.opacity}
-        strokeDash={strokeDash}
+        strokeDasharray={strokeDash}
       />
     </RotationWrapper>
   );
@@ -487,39 +447,51 @@ function CylinderRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const rect = shape;
   const w = Math.abs(rect.width);
   const h = Math.abs(rect.height);
+  const strokeDash = getStrokeDashArray(shape.strokeStyle);
+  const hasFill = shape.fillStyle !== 'none' && shape.fill && shape.fill !== 'transparent';
 
-  const drawables = useMemo(() => {
+  const geom = useMemo(() => {
     if (w < 1 || h < 1) return null;
     const x = rect.x;
     const y = rect.y;
     const cx = x + w / 2;
-    const options = getRoughOptions(shape);
     const ellH = Math.min(h * 0.2, 40);
+    return { x, y, cx, ellH };
+  }, [rect.x, rect.y, w, h]);
 
-    const topEllipse = rc.ellipse(cx, y + ellH / 2, w, ellH, options);
-    const bottomArc = rc.arc(cx, y + h - ellH / 2, w, ellH, 0, Math.PI, false, options);
-    const leftLine = rc.line(x, y + ellH / 2, x, y + h - ellH / 2, options);
-    const rightLine = rc.line(x + w, y + ellH / 2, x + w, y + h - ellH / 2, options);
+  if (!geom) return null;
 
-    return [topEllipse, bottomArc, leftLine, rightLine];
-  }, [rect.x, rect.y, w, h, shape.color, shape.strokeWidth, shape.fill, shape.fillStyle, shape.strokeStyle]);
-
-  if (!drawables) return null;
-  const strokeDash = getStrokeDashArray(shape.strokeStyle);
+  const { x, y, cx, ellH } = geom;
 
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
-      <rect x={rect.x} y={rect.y} width={w} height={h} fill="transparent" stroke="none" pointerEvents="fill" />
-      {drawables.map((drawable, idx) => (
-        <RoughPaths
-          key={idx}
-          drawable={drawable}
-          color={rect.color}
-          strokeWidth={rect.strokeWidth}
-          opacity={rect.opacity}
-          strokeDash={strokeDash}
-        />
-      ))}
+      <rect
+        x={x}
+        y={y + ellH / 2}
+        width={w}
+        height={h - ellH}
+        fill={hasFill ? shape.fill : 'transparent'}
+        stroke="none"
+      />
+      <ellipse
+        cx={cx}
+        cy={y + ellH / 2}
+        rx={w / 2}
+        ry={ellH / 2}
+        fill={hasFill ? shape.fill : 'transparent'}
+        stroke={rect.color}
+        strokeWidth={rect.strokeWidth}
+        opacity={rect.opacity}
+        strokeDasharray={strokeDash}
+      />
+      <path
+        d={`M ${x} ${y + ellH / 2} V ${y + h - ellH / 2} A ${w / 2} ${ellH / 2} 0 0 0 ${x + w} ${y + h - ellH / 2} V ${y + ellH / 2}`}
+        fill="none"
+        stroke={rect.color}
+        strokeWidth={rect.strokeWidth}
+        opacity={rect.opacity}
+        strokeDasharray={strokeDash}
+      />
     </RotationWrapper>
   );
 }

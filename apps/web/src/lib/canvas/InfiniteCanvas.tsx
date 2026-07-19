@@ -5,7 +5,7 @@
 'use client';
 
 import React, { useRef, useCallback, useEffect, useState } from 'react';
-import { Maximize2, Minimize2, ZoomIn, ZoomOut, Compass, Download } from 'lucide-react';
+import { Maximize2, Minimize2, ZoomIn, ZoomOut, Compass, Download, Keyboard, HelpCircle } from 'lucide-react';
 import type {
   Point, CanvasShape, PenShape, RectangleShape,
   EllipseShape, LineShape, ArrowShape, TextShape,
@@ -16,6 +16,7 @@ import {
   isPointInRotatedShape, simplifyPath, pointsToSmoothPath,
   pointsToRawPath, generateId, getShapeBounds,
 } from './math';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ShapeRenderer } from './ShapeRenderer';
 import { SelectionOverlay } from './SelectionOverlay';
 import { CanvasToolbar } from './CanvasToolbar';
@@ -33,6 +34,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
 
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Refs for transient interaction state (avoids re-renders during drag)
   const drawingPointsRef = useRef<Point[]>([]);
@@ -995,6 +997,17 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
 
         <div className="w-px h-5 bg-border/40 mx-0.5" />
 
+        {/* Keyboard Shortcuts */}
+        <button
+          onClick={() => setShowShortcuts(!showShortcuts)}
+          className={`p-1.5 rounded-lg transition-colors ${showShortcuts ? 'text-accent-blue bg-accent-blue/10' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}
+          title="Keyboard Shortcuts"
+        >
+          <Keyboard size={15} />
+        </button>
+
+        <div className="w-px h-5 bg-border/40 mx-0.5" />
+
         {/* Fullscreen */}
         <button
           onClick={toggleFullscreen}
@@ -1004,6 +1017,39 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
           {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
       </div>
+
+      {/* Keyboard Shortcuts Overlay Modal */}
+      <AnimatePresence>
+        {showShortcuts && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute top-16 right-4 z-40 bg-surface/95 backdrop-blur-xl border border-border/60 rounded-2xl p-4 shadow-2xl w-[260px] text-zinc-300 pointer-events-auto"
+          >
+            <div className="flex justify-between items-center mb-3">
+              <h4 className="font-semibold text-white text-sm">Keyboard Shortcuts</h4>
+              <button onClick={() => setShowShortcuts(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">Close</button>
+            </div>
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between"><span>Select Tool</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">V</kbd></div>
+              <div className="flex justify-between"><span>Hand / Pan</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">H</kbd></div>
+              <div className="flex justify-between"><span>Pen / Freehand</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">P</kbd></div>
+              <div className="flex justify-between"><span>Eraser Tool</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">E</kbd></div>
+              <div className="flex justify-between"><span>Rectangle</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">R</kbd></div>
+              <div className="flex justify-between"><span>Circle / Ellipse</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">O</kbd></div>
+              <div className="flex justify-between"><span>Line</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">L</kbd></div>
+              <div className="flex justify-between"><span>Arrow</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">A</kbd></div>
+              <div className="flex justify-between"><span>Text</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">T</kbd></div>
+              <div className="h-px bg-border/40 my-2" />
+              <div className="flex justify-between"><span>Delete Selection</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">Del / Backspace</kbd></div>
+              <div className="flex justify-between"><span>Undo</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">⌘ Z</kbd></div>
+              <div className="flex justify-between"><span>Redo</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">⌘ ⇧ Z</kbd></div>
+              <div className="flex justify-between"><span>Deselect / Cancel</span><kbd className="bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700 font-mono text-[10px]">Esc</kbd></div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

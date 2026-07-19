@@ -14,6 +14,7 @@ export const users = pgTable('users', {
   xp: integer('xp').default(0).notNull(),
   level: integer('level').default(1).notNull(),
   currentStreak: integer('current_streak').default(0).notNull(),
+  role: varchar('role', { length: 20 }).default('user').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

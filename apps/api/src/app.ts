@@ -27,6 +27,7 @@ import { todayRoutes } from './modules/today/today.routes.js';
 import { todosRoutes } from './modules/todos/todos.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { drawingsRoutes } from './modules/drawings/drawings.routes.js';
+import { adminRoutes } from './modules/admin/admin.routes.js';
 
 export function createApp() {
   const app = express();
@@ -65,6 +66,7 @@ export function createApp() {
   app.use('/api/inbox', authenticate, inboxRoutes);
   app.use('/api/today', authenticate, todayRoutes);
   app.use('/api/insights', authenticate, insightsRoutes);
+  app.use('/api/admin', adminRoutes);
 
   app.all('*', (_req, res) => {
     res.status(404).json({ success: false, error: { code: 'ROUTE_NOT_FOUND', message: 'Route not found' } });

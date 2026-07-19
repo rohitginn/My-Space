@@ -62,16 +62,15 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
   if (isText) {
     return (
       <g className="selection-overlay text-selection">
-        {/* Sleek laser glowing bounding box */}
+        {/* Sleek minimal bounding box */}
         <rect
           x={minX - 4}
           y={minY - 4}
           width={w + 8}
           height={h + 8}
           fill="transparent"
-          stroke="#00f0ff"
-          strokeWidth={2}
-          filter="url(#laser-glow)"
+          stroke="#3b82f6"
+          strokeWidth={1}
           pointerEvents="none"
           style={{ vectorEffect: 'non-scaling-stroke' }}
         />
@@ -82,7 +81,7 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
           y1={minY - 4}
           x2={cx}
           y2={minY - ROTATION_HANDLE_OFFSET}
-          stroke="#00f0ff"
+          stroke="#3b82f6"
           strokeWidth={1}
           pointerEvents="none"
           style={{ vectorEffect: 'non-scaling-stroke' }}
@@ -92,9 +91,9 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
         <circle
           cx={cx}
           cy={minY - ROTATION_HANDLE_OFFSET}
-          r={5}
+          r={4}
           fill="#ffffff"
-          stroke="#00f0ff"
+          stroke="#3b82f6"
           strokeWidth={1.5}
           style={{
             cursor: 'grab',
@@ -118,9 +117,8 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
         width={w}
         height={h}
         fill="transparent"
-        stroke="#0ea5e9"
-        strokeWidth={1.5}
-        strokeDasharray="6 3"
+        stroke="#3b82f6"
+        strokeWidth={1}
         pointerEvents="none"
         style={{ vectorEffect: 'non-scaling-stroke' }}
       />
@@ -131,9 +129,8 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
         y1={minY}
         x2={cx}
         y2={minY - ROTATION_HANDLE_OFFSET}
-        stroke="#0ea5e9"
+        stroke="#3b82f6"
         strokeWidth={1}
-        strokeDasharray="3 2"
         pointerEvents="none"
         style={{ vectorEffect: 'non-scaling-stroke' }}
       />
@@ -142,9 +139,9 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
       <circle
         cx={cx}
         cy={minY - ROTATION_HANDLE_OFFSET}
-        r={5}
+        r={4}
         fill="#ffffff"
-        stroke="#0ea5e9"
+        stroke="#3b82f6"
         strokeWidth={1.5}
         style={{
           cursor: 'grab',
@@ -160,15 +157,13 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
       {HANDLE_POSITIONS.map(({ pos, getXY }) => {
         const { x, y } = getXY(box);
         return (
-          <rect
+          <circle
             key={pos}
-            x={x - half}
-            y={y - half}
-            width={HANDLE_SIZE}
-            height={HANDLE_SIZE}
-            rx={2}
+            cx={x}
+            cy={y}
+            r={4}
             fill="#ffffff"
-            stroke="#0ea5e9"
+            stroke="#3b82f6"
             strokeWidth={1.5}
             style={{
               cursor: CURSOR_MAP[pos],

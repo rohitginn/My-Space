@@ -5,6 +5,7 @@ import { env } from '../config/env.js';
 export type TokenPayload = {
   sub: string;
   email: string;
+  role: string;
 };
 
 export function signAccessToken(payload: TokenPayload) {

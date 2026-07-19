@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, count } from 'drizzle-orm';
 
 import { db } from '../../config/db.js';
 import { users } from '../../db/schema/users.js';
@@ -19,11 +19,11 @@ type LoginInput = {
 };
 
 function toAuthUser(user: typeof users.$inferSelect): AuthUser {
-  return { id: user.id, email: user.email, displayName: user.displayName };
+  return { id: user.id, email: user.email, displayName: user.displayName, role: user.role };
 }
 
 async function issueTokens(user: AuthUser): Promise<AuthTokens> {
-  const payload = { sub: user.id, email: user.email };
+  const payload = { sub: user.id, email: user.email, role: user.role };
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
 
@@ -36,12 +36,17 @@ export async function register(input: RegisterInput) {
   const existing = await db.query.users.findFirst({ where: eq(users.email, input.email) });
   if (existing) throw new AppError('Email already registered', 409, 'EMAIL_DUPLICATE');
 
+  // Check if this is the first registered user
+  const usersCountResult = await db.select({ value: count() }).from(users);
+  const isFirstUser = (usersCountResult[0]?.value || 0) === 0;
+
   const [created] = await db
     .insert(users)
     .values({
       email: input.email,
       displayName: input.displayName,
       passwordHash: await hashPassword(input.password),
+      role: isFirstUser ? 'admin' : 'user',
     })
     .returning();
 
