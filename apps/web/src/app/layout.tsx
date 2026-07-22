@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "My Space | One workspace for your whole day",
   description: "Plan your day, track your habits, capture ideas, and keep projects moving in one place.",
+  icons: {
+    icon: "/images/favicon.png",
+  },
 };
 
 import { Providers } from "@/components/Providers";

@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { User, ChevronLeft, ChevronRight, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/components/AuthProvider';
 import {
@@ -79,7 +79,7 @@ function NavItem({ item, isActive, isCollapsed }: { item: typeof navItems[0]; is
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [isSettingsHovered, setIsSettingsHovered] = useState(false);
@@ -227,6 +227,51 @@ export default function Sidebar() {
             </AnimatePresence>
           </Link>
         </motion.div>
+
+        {/* User profile block */}
+        <AnimatePresence mode="wait">
+          {user && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between gap-3 overflow-hidden"
+            >
+              <div className="flex items-center gap-3 overflow-hidden">
+                <div className="w-8 h-8 rounded-full bg-zinc-800 border border-border/40 flex items-center justify-center text-zinc-300 font-bold text-xs shrink-0 select-none">
+                  {user.displayName ? user.displayName.slice(0, 2).toUpperCase() : <User size={14} />}
+                </div>
+                {!isCollapsed && (
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-semibold text-foreground truncate">{user.displayName}</span>
+                    <span className="text-[10px] text-zinc-500 truncate">{user.email}</span>
+                  </div>
+                )}
+              </div>
+              {!isCollapsed && (
+                <button
+                  onClick={logout}
+                  className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                  title="Log Out"
+                >
+                  <LogOut size={14} />
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Mini Log Out button when sidebar is collapsed */}
+        {isCollapsed && (
+          <motion.div whileTap={{ scale: 0.95 }} className="w-full mt-2">
+            <button
+              onClick={logout}
+              className="flex items-center justify-center w-full py-3 rounded-xl transition-all text-muted hover:text-red-400 hover:bg-red-500/10"
+              title="Log Out"
+            >
+              <LogOut size={16} />
+            </button>
+          </motion.div>
+        )}
       </div>
     </motion.aside>
   );
