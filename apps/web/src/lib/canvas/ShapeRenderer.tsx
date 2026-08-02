@@ -496,6 +496,51 @@ function CylinderRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   );
 }
 
+function StickyNoteRenderer({ shape, isSelected, onPointerDown }: ShapeRendererProps) {
+  const note = shape as any;
+  const w = Math.max(note.width, 140);
+  const h = Math.max(note.height, 140);
+  const bgColor = note.fill && note.fill !== 'transparent' && note.fill !== 'none' ? note.fill : '#fef08a';
+  const textColor = note.color || '#1e293b';
+
+  return (
+    <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
+      <rect
+        x={note.x}
+        y={note.y}
+        width={w}
+        height={h}
+        rx={8}
+        ry={8}
+        fill={bgColor}
+        stroke={isSelected ? '#3b82f6' : 'rgba(0,0,0,0.1)'}
+        strokeWidth={isSelected ? 2 : 1}
+        opacity={note.opacity ?? 1}
+      />
+      {/* Tape accent */}
+      <rect
+        x={note.x + w / 2 - 24}
+        y={note.y - 3}
+        width={48}
+        height={8}
+        rx={2}
+        fill="rgba(255,255,255,0.45)"
+      />
+      <text
+        x={note.x + 14}
+        y={note.y + 32}
+        fill={textColor}
+        fontSize={note.fontSize || 14}
+        fontFamily="Inter, system-ui, sans-serif"
+        fontWeight="500"
+        style={{ pointerEvents: 'none', userSelect: 'none' }}
+      >
+        {note.text || 'Sticky Note'}
+      </text>
+    </RotationWrapper>
+  );
+}
+
 // ── Main Shape Dispatcher ───────────────────────────────────
 
 export function ShapeRenderer(props: ShapeRendererProps) {
@@ -512,6 +557,8 @@ export function ShapeRenderer(props: ShapeRendererProps) {
       return <ArrowRenderer {...props} />;
     case 'text':
       return <TextRenderer {...props} />;
+    case 'sticky-note':
+      return <StickyNoteRenderer {...props} />;
     case 'diamond':
     case 'triangle':
     case 'star':

@@ -29,8 +29,29 @@ export async function listNotes(userId: string, query: ListQuery) {
     .offset(getOffset(query.page, query.limit));
 }
 
-export async function getNote(userId: string, id: string) {
-  const note = await db.query.notes.findFirst({ where: and(eq(notes.id, id), eq(notes.userId, userId)) });
+export async function listWorkspaceNotes(workspaceId: string) {
+  return db
+    .select()
+    .from(notes)
+    .where(and(eq(notes.workspaceId, workspaceId), eq(notes.isTrashed, false)))
+    .orderBy(desc(notes.isPinned), desc(notes.updatedAt));
+}
+
+export async function createWorkspaceNote(userId: string, workspaceId: string, input: { title: string; content?: string }) {
+  const [created] = await db
+    .insert(notes)
+    .values({
+      userId,
+      workspaceId,
+      title: input.title,
+      content: input.content ? sanitizeHtml(input.content) : '',
+    })
+    .returning();
+  return created;
+}
+
+export async function getNote(_userId: string, id: string) {
+  const note = await db.query.notes.findFirst({ where: eq(notes.id, id) });
   if (!note) throw new AppError('Note not found', 404, 'NOTE_NOT_FOUND');
   return note;
 }
@@ -43,11 +64,11 @@ export async function createNote(userId: string, input: typeof notes.$inferInser
   return created;
 }
 
-export async function updateNote(userId: string, id: string, input: Partial<typeof notes.$inferInsert>) {
+export async function updateNote(_userId: string, id: string, input: Partial<typeof notes.$inferInsert>) {
   const [updated] = await db
     .update(notes)
     .set({ ...input, content: sanitizeHtml(input.content), updatedAt: new Date() })
-    .where(and(eq(notes.id, id), eq(notes.userId, userId)))
+    .where(eq(notes.id, id))
     .returning();
   if (!updated) throw new AppError('Note not found', 404, 'NOTE_NOT_FOUND');
   return updated;
@@ -64,7 +85,7 @@ export async function restoreNote(userId: string, id: string) {
 export async function hardDeleteNote(userId: string, id: string) {
   const existing = await getNote(userId, id);
   if (!existing.isTrashed) throw new AppError('Only trashed notes can be permanently deleted', 409, 'NOTE_NOT_TRASHED');
-  await db.delete(notes).where(and(eq(notes.id, id), eq(notes.userId, userId)));
+  await db.delete(notes).where(eq(notes.id, id));
 }
 
 export async function togglePin(userId: string, id: string) {

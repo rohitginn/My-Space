@@ -6,6 +6,7 @@ import { env } from '../config/env.js';
 import { verifyAccessToken } from '../utils/jwt.js';
 import { logger } from '../utils/logger.js';
 import { registerKanbanSocket } from './kanban.socket.js';
+import { registerCoCanvasSocket } from './co-canvas.socket.js';
 
 export function initSockets(httpServer: HttpServer) {
   const io = new Server(httpServer, {
@@ -31,6 +32,7 @@ export function initSockets(httpServer: HttpServer) {
   io.on('connection', (socket) => {
     socket.join(`user:${socket.data.userId}`);
     registerKanbanSocket(io, socket);
+    registerCoCanvasSocket(io, socket);
     logger.info({ userId: socket.data.userId }, 'socket connected');
   });
 

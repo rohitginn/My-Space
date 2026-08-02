@@ -6,6 +6,7 @@ import { MotionConfig } from 'framer-motion';
 import { AuthProvider } from './AuthProvider';
 import { ThemeProvider } from 'next-themes';
 import { DialogProvider } from './DialogProvider';
+import { WorkspaceProvider } from './WorkspaceProvider';
 
 export function Providers({ children }: { children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -22,9 +23,9 @@ export function Providers({ children }: { children: ReactNode }) {
       <MotionConfig reducedMotion="user">
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <DialogProvider>
-              {children}
-            </DialogProvider>
+            <WorkspaceProvider>
+              <DialogProvider>{children}</DialogProvider>
+            </WorkspaceProvider>
           </AuthProvider>
         </QueryClientProvider>
       </MotionConfig>

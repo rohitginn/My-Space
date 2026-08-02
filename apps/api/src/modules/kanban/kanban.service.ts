@@ -8,13 +8,28 @@ export async function listBoards(userId: string) {
   return db.select().from(kanbanBoards).where(eq(kanbanBoards.userId, userId)).orderBy(asc(kanbanBoards.createdAt));
 }
 
+export async function listWorkspaceBoards(workspaceId: string) {
+  return db.select().from(kanbanBoards).where(eq(kanbanBoards.workspaceId, workspaceId)).orderBy(asc(kanbanBoards.createdAt));
+}
+
 export async function createBoard(userId: string, input: typeof kanbanBoards.$inferInsert) {
   const [created] = await db.insert(kanbanBoards).values({ ...input, userId }).returning();
   return created;
 }
 
-export async function getBoard(userId: string, id: string) {
-  const board = await db.query.kanbanBoards.findFirst({ where: and(eq(kanbanBoards.id, id), eq(kanbanBoards.userId, userId)) });
+export async function createWorkspaceBoard(userId: string, workspaceId: string, input: { title: string; description?: string }) {
+  const [created] = await db.insert(kanbanBoards).values({ ...input, userId, workspaceId }).returning();
+  const columns = [
+    { boardId: created.id, title: 'To Do', color: '#64748b', sortOrder: 0 },
+    { boardId: created.id, title: 'In Progress', color: '#0ea5e9', sortOrder: 1 },
+    { boardId: created.id, title: 'Done', color: '#22c55e', sortOrder: 2 },
+  ];
+  await db.insert(kanbanColumns).values(columns);
+  return created;
+}
+
+export async function getBoard(_userId: string, id: string) {
+  const board = await db.query.kanbanBoards.findFirst({ where: eq(kanbanBoards.id, id) });
   if (!board) throw new AppError('Board not found', 404, 'BOARD_NOT_FOUND');
 
   const columns = await db.select().from(kanbanColumns).where(eq(kanbanColumns.boardId, id)).orderBy(asc(kanbanColumns.sortOrder));

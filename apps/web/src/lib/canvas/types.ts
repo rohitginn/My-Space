@@ -31,6 +31,7 @@ export type ShapeType =
   | 'line'
   | 'arrow'
   | 'text'
+  | 'sticky-note'
   | 'diamond'
   | 'triangle'
   | 'star'
@@ -40,7 +41,7 @@ export type ShapeType =
   | 'cylinder'
   | 'callout';
 
-export type ToolType = ShapeType | 'select' | 'pan' | 'eraser';
+export type ToolType = ShapeType | 'select' | 'pan' | 'eraser' | 'comment';
 
 /** Stroke rendering style */
 export type StrokeStyleType = 'solid' | 'dashed' | 'dotted';
@@ -104,6 +105,14 @@ export interface TextShape extends BaseShape {
   fontFamily: string;
 }
 
+/** Sticky Note shape — pastel colored sticky note with text */
+export interface StickyNoteShape extends BaseShape {
+  type: 'sticky-note';
+  text: string;
+  fontSize: number;
+  noteColor: string;
+}
+
 export interface DiamondShape extends BaseShape { type: 'diamond'; }
 export interface TriangleShape extends BaseShape { type: 'triangle'; }
 export interface StarShape extends BaseShape { type: 'star'; }
@@ -121,6 +130,7 @@ export type CanvasShape =
   | LineShape
   | ArrowShape
   | TextShape
+  | StickyNoteShape
   | DiamondShape
   | TriangleShape
   | StarShape
@@ -129,6 +139,34 @@ export type CanvasShape =
   | TrapezoidShape
   | CylinderShape
   | CalloutShape;
+
+export interface RemoteCursor {
+  userId: string;
+  x: number;
+  y: number;
+  name: string;
+  color: string;
+}
+
+export interface RoomUser {
+  socketId: string;
+  userId: string;
+  userName: string;
+  userColor: string;
+}
+
+export interface CommentPin {
+  id: string;
+  canvasId: string;
+  workspaceId: string;
+  userId: string;
+  userName: string;
+  x: number;
+  y: number;
+  content: string;
+  isResolved: boolean;
+  createdAt: string;
+}
 
 /** The full document state serialized to/from the database */
 export interface CanvasDocument {

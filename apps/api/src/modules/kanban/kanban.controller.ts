@@ -8,7 +8,9 @@ function userId(req: Express.Request) {
 }
 
 export const listBoards = asyncHandler(async (req, res) => res.json({ success: true, data: await service.listBoards(userId(req)) }));
+export const listWorkspaceBoards = asyncHandler(async (req, res) => res.json({ success: true, data: await service.listWorkspaceBoards(req.params.workspaceId) }));
 export const createBoard = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await service.createBoard(userId(req), req.body) }));
+export const createWorkspaceBoard = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await service.createWorkspaceBoard(userId(req), req.params.workspaceId, req.body) }));
 export const getBoard = asyncHandler(async (req, res) => res.json({ success: true, data: await service.getBoard(userId(req), req.params.id) }));
 export const updateBoard = asyncHandler(async (req, res) => res.json({ success: true, data: await service.updateBoard(userId(req), req.params.id, req.body) }));
 export const deleteBoard = asyncHandler(async (req, res) => {

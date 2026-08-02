@@ -42,6 +42,46 @@ const runMigrate = async () => {
     ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "role" varchar(20) DEFAULT 'user' NOT NULL;
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS "workspaces" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "name" varchar(200) NOT NULL,
+      "slug" varchar(100) NOT NULL UNIQUE,
+      "description" text,
+      "avatar_url" text,
+      "owner_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "type" varchar(20) DEFAULT 'team' NOT NULL,
+      "accent_color" varchar(7) DEFAULT '#0f766e' NOT NULL,
+      "invite_code" varchar(20) NOT NULL UNIQUE,
+      "max_members" integer DEFAULT 10 NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "workspace_members" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "workspace_id" uuid NOT NULL REFERENCES "workspaces"("id") ON DELETE CASCADE,
+      "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "role" varchar(20) DEFAULT 'member' NOT NULL,
+      "joined_at" timestamp with time zone DEFAULT now() NOT NULL,
+      CONSTRAINT "workspace_member_unique" UNIQUE("workspace_id", "user_id")
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "co_canvases" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "workspace_id" uuid NOT NULL REFERENCES "workspaces"("id") ON DELETE CASCADE,
+      "title" varchar(300) NOT NULL,
+      "document_data" jsonb DEFAULT '{}'::jsonb NOT NULL,
+      "created_by_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
   console.log('Fixes applied successfully!');
   await sql.end();
   process.exit(0);

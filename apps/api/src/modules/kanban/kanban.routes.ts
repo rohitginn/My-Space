@@ -7,7 +7,9 @@ import { createBoardSchema, createCardSchema, createColumnSchema, idParamsSchema
 export const kanbanRoutes = Router();
 
 kanbanRoutes.get('/boards', controller.listBoards);
+kanbanRoutes.get('/workspaces/:workspaceId/boards', controller.listWorkspaceBoards);
 kanbanRoutes.post('/boards', validate({ body: createBoardSchema }), controller.createBoard);
+kanbanRoutes.post('/workspaces/:workspaceId/boards', validate({ body: createBoardSchema }), controller.createWorkspaceBoard);
 kanbanRoutes.get('/boards/:id', validate({ params: idParamsSchema }), controller.getBoard);
 kanbanRoutes.patch('/boards/:id', validate({ params: idParamsSchema, body: updateBoardSchema }), controller.updateBoard);
 kanbanRoutes.delete('/boards/:id', validate({ params: idParamsSchema }), controller.deleteBoard);

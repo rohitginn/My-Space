@@ -28,7 +28,7 @@ export function DashboardIcon({ isHovered, isActive }: IconProps) {
         height="7"
         rx="1"
         initial={{ scale: 0.8 }}
-        animate={isHovered ? { scale: 1.15, rotate: 90, stroke: 'var(--accent-blue)' } : { scale: 1, rotate: 0, stroke: color }}
+        animate={isHovered ? { scale: 1.15, rotate: 90 } : { scale: 1, rotate: 0 }}
         transition={{ type: 'spring', stiffness: 350, damping: 12 }}
       />
     </svg>
@@ -163,7 +163,7 @@ export function CalendarIcon({ isHovered, isActive }: IconProps) {
           width="3"
           height="3"
           rx="0.5"
-          fill={isHovered ? 'var(--accent-green)' : 'currentColor'}
+          fill="currentColor"
           opacity={isHovered ? 1 : 0.3}
           animate={isHovered ? { scale: 1.3, y: -0.5 } : { scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 350, damping: 10 }}
@@ -175,7 +175,7 @@ export function CalendarIcon({ isHovered, isActive }: IconProps) {
           width="3"
           height="3"
           rx="0.5"
-          fill={isHovered ? 'var(--accent-blue)' : 'currentColor'}
+          fill="currentColor"
           opacity={isHovered ? 1 : 0.3}
           animate={isHovered ? { scale: 1.3, y: -0.5 } : { scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 350, damping: 10, delay: 0.05 }}

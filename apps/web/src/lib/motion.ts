@@ -28,3 +28,6 @@ export const staggerParent = {
 
 export const pressTap = { scale: 0.97 }; // use as whileTap={pressTap}
 export const hoverLift = { scale: 1.02 }; // interactive cards only, as whileHover
+
+export const slideUpSheet = { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: { type: 'spring', stiffness: 300, damping: 30 } };
+export const pageTransition = { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -6 }, transition: { duration: 0.2, ease: EASE_OUT } };

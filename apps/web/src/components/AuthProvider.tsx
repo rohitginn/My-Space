@@ -39,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = localStorage.getItem('accessToken');
       if (!token) {
         setIsLoading(false);
-        if (!publicRoutes.has(pathname)) {
+        if (!publicRoutes.has(window.location.pathname)) {
           router.push('/login');
         }
         return;
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         localStorage.removeItem('accessToken');
-        if (!publicRoutes.has(pathname)) {
+        if (!publicRoutes.has(window.location.pathname)) {
           router.push('/login');
         }
       } finally {
@@ -61,7 +61,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initAuth();
-  }, [pathname, router]);
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading && !user && !publicRoutes.has(pathname)) {
+      router.push('/login');
+    }
+  }, [pathname, isLoading, user, router]);
 
   const login = (token: string, userData: User) => {
     localStorage.setItem('accessToken', token);

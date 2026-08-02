@@ -14,3 +14,5 @@ export * from './users.js';
 export * from './drawings.js';
 export * from './routines.js';
 export * from './badges.js';
+export * from './workspaces.js';
+export * from './co-canvases.js';

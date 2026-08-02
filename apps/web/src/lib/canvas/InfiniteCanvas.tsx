@@ -21,16 +21,36 @@ import { ShapeRenderer } from './ShapeRenderer';
 import { SelectionOverlay } from './SelectionOverlay';
 import { CanvasToolbar } from './CanvasToolbar';
 import type { CanvasEngine } from './useCanvasEngine';
+import type { RemoteCursor, CommentPin } from './types';
+import { MessageSquare, Check, X } from 'lucide-react';
 
 interface InfiniteCanvasProps {
   engine: CanvasEngine;
   onChanged?: () => void;
+  onPointerMoveWorld?: (point: Point) => void;
+  remoteCursors?: Record<string, RemoteCursor>;
+  comments?: CommentPin[];
+  onAddComment?: (point: Point, content: string) => void;
+  onToggleResolveComment?: (commentId: string) => void;
 }
 
-export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
+export function InfiniteCanvas({
+  engine,
+  onChanged,
+  onPointerMoveWorld,
+  remoteCursors,
+  comments,
+  onAddComment,
+  onToggleResolveComment,
+}: InfiniteCanvasProps) {
   const { state, ...actions } = engine;
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Comment pin transient state
+  const [pendingCommentPt, setPendingCommentPt] = useState<Point | null>(null);
+  const [newCommentText, setNewCommentText] = useState('');
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
 
   // Fullscreen state
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -266,6 +286,17 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
             width: 200,
             height: 30,
           } as TextShape;
+        case 'sticky-note':
+          return {
+            ...base,
+            type: 'sticky-note',
+            text: '',
+            fontSize: 14,
+            noteColor: '#fef08a',
+            fill: '#fef08a',
+            width: 160,
+            height: 160,
+          } as any;
         case 'diamond':
         case 'triangle':
         case 'star':
@@ -376,6 +407,13 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
         return;
       }
 
+      // Comment tool
+      if (tool === 'comment') {
+        setPendingCommentPt(worldPt);
+        setNewCommentText('');
+        return;
+      }
+
       // Text tool
       if (tool === 'text') {
         engine.pushHistory();
@@ -481,6 +519,7 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
       }
 
       const worldPt = getWorldPoint(e);
+      onPointerMoveWorld?.(worldPt);
 
       // Erasing
       if (isErasingRef.current) {
@@ -846,8 +885,143 @@ export function InfiniteCanvas({ engine, onChanged }: InfiniteCanvasProps) {
               onHandlePointerDown={handleResizePointerDown}
             />
           )}
+
+          {/* Remote Cursors Overlay */}
+          {remoteCursors && Object.values(remoteCursors).map((cursor) => (
+            <g
+              key={cursor.userId}
+              transform={`translate(${cursor.x}, ${cursor.y})`}
+              className="pointer-events-none transition-transform duration-75"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill={cursor.color} stroke="#ffffff" strokeWidth="1.5">
+                <path d="M5.653 3.123A.75.75 0 0 0 4.5 3.75v16.5a.75.75 0 0 0 1.28.53l4.72-4.72h6.25a.75.75 0 0 0 .53-1.28L5.653 3.123z" />
+              </svg>
+              <g transform="translate(14, 14)">
+                <rect
+                  rx="4"
+                  ry="4"
+                  width={Math.max(60, (cursor.name || 'User').length * 8 + 12)}
+                  height="20"
+                  fill={cursor.color}
+                />
+                <text
+                  x="6"
+                  y="14"
+                  fill="#ffffff"
+                  fontSize="11"
+                  fontWeight="600"
+                  fontFamily="Inter, sans-serif"
+                >
+                  {cursor.name || 'User'}
+                </text>
+              </g>
+            </g>
+          ))}
+
+          {/* Render Comment Pins */}
+          {comments?.map((c) => (
+            <g
+              key={c.id}
+              transform={`translate(${c.x}, ${c.y})`}
+              className="cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveCommentId(activeCommentId === c.id ? null : c.id);
+              }}
+            >
+              <circle
+                r="13"
+                fill={c.isResolved ? '#64748b' : '#0ea5e9'}
+                stroke="#ffffff"
+                strokeWidth="2"
+                className="shadow-md transition-transform hover:scale-110"
+              />
+              <text x="0" y="4" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">
+                💬
+              </text>
+            </g>
+          ))}
         </g>
       </svg>
+
+      {/* Active Comment Card Popover */}
+      {activeCommentId && (() => {
+        const comment = comments?.find((c) => c.id === activeCommentId);
+        if (!comment) return null;
+        const screenPt = worldToScreen(comment.x, comment.y, state.camera);
+        return (
+          <div
+            style={{ left: screenPt.x + 18, top: screenPt.y - 20 }}
+            className="absolute z-40 w-64 rounded-2xl border border-border bg-surface/95 backdrop-blur p-3.5 shadow-2xl space-y-2 pointer-events-auto"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-foreground">{comment.userName}</span>
+              <button
+                onClick={() => setActiveCommentId(null)}
+                className="p-1 text-muted hover:text-foreground"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <p className="text-xs text-foreground leading-relaxed">{comment.content}</p>
+            <div className="flex items-center justify-between pt-1.5 text-[10px] text-muted border-t border-border/60">
+              <span>{new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <button
+                onClick={() => {
+                  onToggleResolveComment?.(comment.id);
+                  setActiveCommentId(null);
+                }}
+                className={`flex items-center gap-1 font-semibold ${comment.isResolved ? 'text-muted' : 'text-accent-green'}`}
+              >
+                <Check size={12} /> {comment.isResolved ? 'Resolved' : 'Resolve'}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* New Comment Creator Popover */}
+      {pendingCommentPt && (() => {
+        const screenPt = worldToScreen(pendingCommentPt.x, pendingCommentPt.y, state.camera);
+        return (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (newCommentText.trim()) {
+                onAddComment?.(pendingCommentPt, newCommentText.trim());
+                setPendingCommentPt(null);
+                setNewCommentText('');
+              }
+            }}
+            style={{ left: screenPt.x + 18, top: screenPt.y - 20 }}
+            className="absolute z-40 w-64 rounded-2xl border border-border bg-surface p-3 shadow-2xl space-y-2 pointer-events-auto"
+          >
+            <textarea
+              autoFocus
+              value={newCommentText}
+              onChange={(e) => setNewCommentText(e.target.value)}
+              placeholder="Leave a comment pin..."
+              className="w-full rounded-xl border border-border bg-background p-2.5 text-xs text-foreground outline-none focus:border-accent-blue min-h-[60px]"
+            />
+            <div className="flex justify-end gap-1.5">
+              <button
+                type="button"
+                onClick={() => setPendingCommentPt(null)}
+                className="px-2.5 py-1 text-xs text-muted hover:text-foreground"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!newCommentText.trim()}
+                className="px-3 py-1 bg-accent-blue text-white rounded-lg text-xs font-semibold disabled:opacity-50"
+              >
+                Post Pin
+              </button>
+            </div>
+          </form>
+        );
+      })()}
 
       {/* Text editing overlay (HTML on top of SVG) */}
       {editingTextId && state.shapes[editingTextId] && (

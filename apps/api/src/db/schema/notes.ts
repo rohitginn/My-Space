@@ -1,6 +1,7 @@
 import { type AnyPgColumn, boolean, integer, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
 import { users } from './users.js';
+import { workspaces } from './workspaces.js';
 
 export const folders = pgTable('folders', {
   id: uuid('id').defaultRandom().primaryKey(),
@@ -15,6 +16,7 @@ export const folders = pgTable('folders', {
 export const notes = pgTable('notes', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
   folderId: uuid('folder_id').references(() => folders.id, { onDelete: 'set null' }),
   title: varchar('title', { length: 255 }).notNull().default('Untitled'),
   content: text('content'),

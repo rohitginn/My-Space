@@ -2,10 +2,12 @@ import { integer, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg
 
 import { notes } from './notes.js';
 import { users } from './users.js';
+import { workspaces } from './workspaces.js';
 
 export const kanbanBoards = pgTable('kanban_boards', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
   title: varchar('title', { length: 200 }).notNull(),
   description: text('description'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

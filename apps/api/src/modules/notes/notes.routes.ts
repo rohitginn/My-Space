@@ -7,8 +7,10 @@ import { createNoteSchema, idParamsSchema, listNotesQuerySchema, updateNoteSchem
 export const notesRoutes = Router();
 
 notesRoutes.get('/', validate({ query: listNotesQuerySchema }), controller.listNotes);
+notesRoutes.get('/workspaces/:workspaceId', controller.listWorkspaceNotes);
 notesRoutes.get('/:id', validate({ params: idParamsSchema }), controller.getNote);
 notesRoutes.post('/', validate({ body: createNoteSchema }), controller.createNote);
+notesRoutes.post('/workspaces/:workspaceId', validate({ body: createNoteSchema }), controller.createWorkspaceNote);
 notesRoutes.patch('/:id', validate({ params: idParamsSchema, body: updateNoteSchema }), controller.updateNote);
 notesRoutes.delete('/:id', validate({ params: idParamsSchema }), controller.trashNote);
 notesRoutes.post('/:id/restore', validate({ params: idParamsSchema }), controller.restoreNote);

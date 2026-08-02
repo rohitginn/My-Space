@@ -4,20 +4,21 @@
 
 'use client';
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { ChevronLeft, Loader2, CloudLightning, Check, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { io, Socket } from 'socket.io-client';
 import api from '@/lib/api';
 import { InfiniteCanvas, useCanvasEngine } from '@/lib/canvas';
 import type { CanvasDocument } from '@/lib/canvas';
 
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
+function debounce(func: (data: CanvasDocument) => void, wait: number) {
   let timeout: NodeJS.Timeout | null = null;
-  const debounced = (...args: Parameters<T>) => {
+  const debounced = (data: CanvasDocument) => {
     if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
+    timeout = setTimeout(() => func(data), wait);
   };
   debounced.cancel = () => {
     if (timeout) clearTimeout(timeout);
@@ -28,20 +29,24 @@ function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
 type DrawingDetail = {
   id: string;
   title: string;
-  documentData: any;
+  documentData: unknown;
 };
 
-function CanvasEditorInner({ id, drawing }: { id: string; drawing: DrawingDetail }) {
+function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: DrawingDetail; workspaceId?: string }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
+  const [activeUsers, setActiveUsers] = useState<{ socketId: string; userId: string; userName: string; userColor: string }[]>([]);
+  const [remoteCursors, setRemoteCursors] = useState<Record<string, { userId: string; x: number; y: number; name: string; color: string }>>({});
+  const [comments, setComments] = useState<any[]>([]);
+  const socketRef = useRef<Socket | null>(null);
 
   // Initialize the custom canvas engine with loaded data
   const engine = useCanvasEngine(drawing.documentData as CanvasDocument | undefined);
+  const { loadDocument } = engine;
 
   const saveMutation = useMutation({
-    mutationFn: async (documentData: any) => {
-      await api.patch(`/drawings/${id}`, { documentData });
+    mutationFn: async (documentData: CanvasDocument) => {
+      await api.patch(workspaceId ? `/workspaces/${workspaceId}/canvases/${id}` : `/drawings/${id}`, { documentData });
     },
     onSuccess: () => {
       setSaveStatus('saved');
@@ -52,22 +57,115 @@ function CanvasEditorInner({ id, drawing }: { id: string; drawing: DrawingDetail
   });
 
   // Debounced save
-  const debouncedSave = useRef(
-    debounce((data: CanvasDocument) => {
+  const debouncedSave = useMemo(() => debounce((data: CanvasDocument) => {
       setSaveStatus('saving');
       saveMutation.mutate(data);
-    }, 2000)
-  ).current;
+    }, 2000), [saveMutation]);
 
   useEffect(() => {
     return () => debouncedSave.cancel();
   }, [debouncedSave]);
 
+  useEffect(() => {
+    if (!workspaceId) return;
+    const token = localStorage.getItem('accessToken');
+    const userStr = localStorage.getItem('user');
+    let userName = 'Collaborator';
+    let userColor = '#3b82f6';
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u.name) userName = u.name;
+      } catch {}
+    }
+
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000', { auth: { token } });
+    socket.emit('co-canvas:join', { workspaceId, canvasId: id, userName, userColor });
+
+    socket.on('co-canvas:updated', ({ documentData }: { documentData: CanvasDocument }) => loadDocument(documentData));
+    socket.on('co-canvas:presence', (users: { socketId: string; userId: string; userName: string; userColor: string }[]) => setActiveUsers(users));
+    socket.on('co-canvas:cursor-moved', (cursor: { userId: string; x: number; y: number; name: string; color: string }) => {
+      setRemoteCursors((prev) => ({ ...prev, [cursor.userId]: cursor }));
+    });
+    socket.on('co-canvas:comment-added', (comment: any) => {
+      setComments((prev) => [...prev, comment]);
+    });
+    socket.on('co-canvas:comment-resolved-toggled', ({ commentId }: { commentId: string }) => {
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
+    });
+
+    socketRef.current = socket;
+    return () => {
+      socket.off('co-canvas:updated');
+      socket.off('co-canvas:presence');
+      socket.off('co-canvas:cursor-moved');
+      socket.off('co-canvas:comment-added');
+      socket.off('co-canvas:comment-resolved-toggled');
+      socket.emit('co-canvas:leave', { workspaceId, canvasId: id });
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [id, loadDocument, workspaceId]);
+
   // Callback when canvas content changes
   const handleChanged = useCallback(() => {
     const doc = engine.getDocument();
     debouncedSave(doc);
-  }, [engine, debouncedSave]);
+    if (workspaceId) socketRef.current?.emit('co-canvas:update', { workspaceId, canvasId: id, documentData: doc });
+  }, [engine, debouncedSave, id, workspaceId]);
+
+  const handlePointerMoveWorld = useCallback(({ x, y }: { x: number; y: number }) => {
+    if (!workspaceId || !socketRef.current) return;
+    const userStr = localStorage.getItem('user');
+    let name = 'Collaborator';
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u.name) name = u.name;
+      } catch {}
+    }
+    socketRef.current.emit('co-canvas:cursor', {
+      workspaceId,
+      canvasId: id,
+      x,
+      y,
+      name,
+      color: '#3b82f6',
+    });
+  }, [workspaceId, id]);
+
+  const handleAddComment = useCallback((pt: { x: number; y: number }, content: string) => {
+    if (!workspaceId || !socketRef.current) return;
+    const userStr = localStorage.getItem('user');
+    let userName = 'Collaborator';
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u.name) userName = u.name;
+      } catch {}
+    }
+    const newComment = {
+      id: String(Date.now()),
+      canvasId: id,
+      workspaceId,
+      userId: socketRef.current.id || 'user',
+      userName,
+      x: pt.x,
+      y: pt.y,
+      content,
+      isResolved: false,
+      createdAt: new Date().toISOString(),
+    };
+    setComments((prev) => [...prev, newComment]);
+    socketRef.current.emit('co-canvas:comment-add', { workspaceId, canvasId: id, comment: newComment });
+  }, [workspaceId, id]);
+
+  const handleToggleResolveComment = useCallback((commentId: string) => {
+    setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
+    if (workspaceId && socketRef.current) {
+      socketRef.current.emit('co-canvas:comment-toggle-resolve', { workspaceId, canvasId: id, commentId });
+    }
+  }, [workspaceId, id]);
 
   return (
     <div className="w-full h-screen flex flex-col relative bg-background overflow-hidden">
@@ -82,7 +180,7 @@ function CanvasEditorInner({ id, drawing }: { id: string; drawing: DrawingDetail
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => router.push('/canvas')}
+            onClick={() => router.push(workspaceId ? `/co-space/${workspaceId}/canvas` : '/canvas')}
             className="p-1.5 text-muted hover:text-foreground hover:bg-surface-hover rounded-lg transition-colors"
             title="Back to Dashboard"
           >
@@ -90,12 +188,27 @@ function CanvasEditorInner({ id, drawing }: { id: string; drawing: DrawingDetail
           </motion.button>
 
           <h2 className="text-foreground font-semibold text-sm truncate max-w-[200px] md:max-w-sm">
-            {drawing.title}
+            {drawing.title}{workspaceId && <span className="ml-2 text-xs font-medium text-accent-green">Shared</span>}
           </h2>
         </div>
 
-        {/* Save Status */}
-        <div className="flex items-center gap-2 text-xs font-medium">
+        {/* Presence Avatars & Save Status */}
+        <div className="flex items-center gap-3 text-xs font-medium">
+          {workspaceId && activeUsers.length > 0 && (
+            <div className="flex items-center -space-x-1.5 mr-2">
+              {activeUsers.map((u) => (
+                <div
+                  key={u.socketId}
+                  title={u.userName}
+                  className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-background uppercase"
+                  style={{ backgroundColor: u.userColor }}
+                >
+                  {u.userName.charAt(0)}
+                </div>
+              ))}
+            </div>
+          )}
+
           {saveStatus === 'saving' && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -131,19 +244,27 @@ function CanvasEditorInner({ id, drawing }: { id: string; drawing: DrawingDetail
 
       {/* Canvas Workspace */}
       <div className="flex-1 w-full relative z-10">
-        <InfiniteCanvas engine={engine} onChanged={handleChanged} />
+        <InfiniteCanvas
+          engine={engine}
+          onChanged={handleChanged}
+          onPointerMoveWorld={handlePointerMoveWorld}
+          remoteCursors={remoteCursors}
+          comments={comments}
+          onAddComment={handleAddComment}
+          onToggleResolveComment={handleToggleResolveComment}
+        />
       </div>
     </div>
   );
 }
 
-export default function CanvasEditor({ id }: { id: string }) {
+export default function CanvasEditor({ id, workspaceId }: { id: string; workspaceId?: string }) {
   const router = useRouter();
 
   const { data: drawing, isLoading, isError } = useQuery({
-    queryKey: ['drawings', id],
+    queryKey: [workspaceId ? 'co-canvases' : 'drawings', id],
     queryFn: async () => {
-      const { data } = await api.get(`/drawings/${id}`);
+      const { data } = await api.get(workspaceId ? `/workspaces/${workspaceId}/canvases/${id}` : `/drawings/${id}`);
       return data.data as DrawingDetail;
     },
   });
@@ -164,7 +285,7 @@ export default function CanvasEditor({ id }: { id: string }) {
         <h3 className="text-lg font-bold mb-2">Error Opening Board</h3>
         <p className="text-sm text-muted mb-6">Could not load drawing data. Please try again.</p>
         <button
-          onClick={() => router.push('/canvas')}
+          onClick={() => router.push(workspaceId ? `/co-space/${workspaceId}/canvas` : '/canvas')}
           className="px-4 py-2 bg-surface hover:bg-surface-hover border border-border text-foreground rounded-lg transition-colors font-medium"
         >
           Back to Boards
@@ -173,5 +294,5 @@ export default function CanvasEditor({ id }: { id: string }) {
     );
   }
 
-  return <CanvasEditorInner id={id} drawing={drawing} />;
+  return <CanvasEditorInner id={id} drawing={drawing} workspaceId={workspaceId} />;
 }

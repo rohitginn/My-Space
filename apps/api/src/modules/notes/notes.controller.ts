@@ -11,6 +11,14 @@ export const listNotes = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await notesService.listNotes(userId(req), req.query as never) });
 });
 
+export const listWorkspaceNotes = asyncHandler(async (req, res) => {
+  res.json({ success: true, data: await notesService.listWorkspaceNotes(req.params.workspaceId) });
+});
+
+export const createWorkspaceNote = asyncHandler(async (req, res) => {
+  res.status(201).json({ success: true, data: await notesService.createWorkspaceNote(userId(req), req.params.workspaceId, req.body) });
+});
+
 export const getNote = asyncHandler(async (req, res) => {
   res.json({ success: true, data: await notesService.getNote(userId(req), req.params.id) });
 });

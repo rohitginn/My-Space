@@ -8,7 +8,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MousePointer2, Hand, Pencil, Minus,
-  ArrowUpRight, Type, Undo2, Redo2, Trash2,
+  ArrowUpRight, Type, StickyNote, MessageSquare, Undo2, Redo2, Trash2,
   ArrowUpToLine, ArrowDownToLine, Shapes, ChevronDown, Eraser
 } from 'lucide-react';
 import type { ToolType, ToolStyle, StrokeStyleType, FillStyleType } from './types';
@@ -216,6 +216,24 @@ export function CanvasToolbar({
           className={`p-2.5 rounded-xl transition-colors ${activeTool === 'text' ? 'bg-accent-blue text-white shadow-lg' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}
         >
           <Type size={18} />
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
+          onClick={() => onToolChange('sticky-note')}
+          title="Sticky Note"
+          className={`p-2.5 rounded-xl transition-colors ${activeTool === 'sticky-note' ? 'bg-accent-blue text-white shadow-lg' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}
+        >
+          <StickyNote size={18} />
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
+          onClick={() => onToolChange('comment')}
+          title="Add Comment Pin"
+          className={`p-2.5 rounded-xl transition-colors ${activeTool === 'comment' ? 'bg-accent-blue text-white shadow-lg' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}
+        >
+          <MessageSquare size={18} />
         </motion.button>
 
         <div className="w-px h-6 bg-border/60 mx-1" />
