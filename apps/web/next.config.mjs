@@ -9,6 +9,9 @@ const nextConfig = {
   // Set tracing root to workspace root to prevent recursive crawler leaks
   outputFileTracingRoot: path.join(__dirname, '../../'),
 
+  // Silence Turbopack vs Webpack config error in Next.js 16
+  turbopack: {},
+
   // Automatically tree-shake heavy barrel exports in dev mode (saves ~70% RAM)
   experimental: {
     optimizePackageImports: [
