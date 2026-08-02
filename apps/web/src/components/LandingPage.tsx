@@ -9,9 +9,15 @@ import {
   KanbanSquare,
   PenLine,
   Target,
+  Users,
 } from 'lucide-react';
 
 const modules = [
+  {
+    name: 'Co-Spaces & Co-Working',
+    description: 'Collaborate live with friends and colleagues using shared canvases, kanban, and notes.',
+    icon: Users,
+  },
   {
     name: 'Notes',
     description: 'Catch ideas quickly, then keep them in a place you will return to.',

@@ -11,7 +11,7 @@ import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { CanvasIcon, DashboardIcon, FocusIcon, GoalsIcon, HabitsIcon, InboxIcon, NotesIcon, ProjectsIcon, TasksIcon } from './AnimatedSidebarIcons';
 
 const personalItems = [
-  { name: 'Dashboard', href: '/dashboard', icon: DashboardIcon }, { name: 'Inbox', href: '/inbox', icon: InboxIcon }, { name: 'Focus Room', href: '/focus', icon: FocusIcon }, { name: 'Canvas', href: '/canvas', icon: CanvasIcon }, { name: 'Projects', href: '/projects', icon: ProjectsIcon }, { name: 'Notes', href: '/notes', icon: NotesIcon }, { name: 'Tasks', href: '/tasks', icon: TasksIcon }, { name: 'Habits', href: '/habits', icon: HabitsIcon }, { name: 'Goals', href: '/goals', icon: GoalsIcon },
+  { name: 'Dashboard', href: '/dashboard', icon: DashboardIcon }, { name: 'Inbox', href: '/inbox', icon: InboxIcon }, { name: 'Focus Room', href: '/focus', icon: FocusIcon }, { name: 'Canvas', href: '/canvas', icon: CanvasIcon }, { name: 'Projects', href: '/projects', icon: ProjectsIcon }, { name: 'Notes', href: '/notes', icon: NotesIcon }, { name: 'Tasks', href: '/tasks', icon: TasksIcon }, { name: 'Habits', href: '/habits', icon: HabitsIcon }, { name: 'Goals', href: '/goals', icon: GoalsIcon }, { name: 'Co-Spaces', href: '/co-space', icon: Users },
 ];
 const coItems = [
   { name: 'Co-Canvas', href: (id: string) => `/co-space/${id}/canvas`, icon: CanvasIcon },
