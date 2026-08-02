@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, FileText, Loader2, Pin, Trash2, Edit3, Check, Save } from 'lucide-react';
+import { Plus, FileText, Loader2, Pin, Trash2, Edit3, Check, Save, Heading1, CheckSquare, Code, Quote } from 'lucide-react';
 import api from '@/lib/api';
 import { Modal } from './Modal';
 
@@ -193,14 +193,46 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
               </div>
 
               {/* Note Content */}
-              <div className="flex-1 min-h-0">
+              <div className="flex-1 min-h-0 flex flex-col">
                 {isEditing ? (
-                  <textarea
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    placeholder="Write document in Markdown..."
-                    className="w-full h-full min-h-[300px] rounded-xl border border-border bg-background p-4 text-sm font-mono text-foreground outline-none focus:border-accent-blue resize-none"
-                  />
+                  <>
+                    <div className="mb-2 flex items-center gap-1.5 p-1 rounded-xl bg-background border border-border shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setEditContent((prev) => prev ? `${prev}\n# ` : '# ')}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-surface-hover flex items-center gap-1 text-foreground cursor-pointer"
+                      >
+                        <Heading1 size={14} /> Heading
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditContent((prev) => prev ? `${prev}\n- [ ] ` : '- [ ] ')}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-surface-hover flex items-center gap-1 text-foreground cursor-pointer"
+                      >
+                        <CheckSquare size={14} /> Checklist
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditContent((prev) => prev ? `${prev}\n\`\`\`\n\n\`\`\`` : '```\n\n```')}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-surface-hover flex items-center gap-1 text-foreground cursor-pointer"
+                      >
+                        <Code size={14} /> Code Block
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditContent((prev) => prev ? `${prev}\n> ` : '> ')}
+                        className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-surface-hover flex items-center gap-1 text-foreground cursor-pointer"
+                      >
+                        <Quote size={14} /> Quote
+                      </button>
+                    </div>
+                    <textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      placeholder="Write document in Markdown... (Type / or use block formatting toolbar above)"
+                      className="w-full flex-1 min-h-[300px] rounded-xl border border-border bg-background p-4 text-sm font-mono text-foreground outline-none focus:border-accent-blue resize-none"
+                    />
+                  </>
                 ) : (
                   <div className="prose dark:prose-invert max-w-none text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                     {activeNote.content || <span className="italic text-muted">Empty document content...</span>}

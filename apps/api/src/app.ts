@@ -29,7 +29,7 @@ import { usersRoutes } from './modules/users/users.routes.js';
 import { drawingsRoutes } from './modules/drawings/drawings.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { workspacesRoutes } from './modules/workspaces/workspaces.routes.js';
-import { coCanvasRoutes } from './modules/co-canvas/co-canvas.routes.js';
+import { coCanvasCommentRoutes } from './modules/co-canvas/co-canvas.routes.js';
 
 export function createApp() {
   const app = express();
@@ -70,7 +70,7 @@ export function createApp() {
   app.use('/api/insights', authenticate, insightsRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/workspaces', authenticate, workspacesRoutes);
-  app.use('/api', authenticate, coCanvasRoutes);
+  app.use('/api', authenticate, coCanvasCommentRoutes);
 
   app.all('*', (_req, res) => {
     res.status(404).json({ success: false, error: { code: 'ROUTE_NOT_FOUND', message: 'Route not found' } });

@@ -386,6 +386,57 @@ export function InfiniteCanvas({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [state.selectedIds, editingTextId, engine, actions, onChanged]);
 
+  // ── Multi-Touch Pinch-to-Zoom & Pan ───────────────────────
+  const touchStartDistRef = useRef<number | null>(null);
+  const touchStartCamRef = useRef<{ x: number; y: number; zoom: number; midX: number; midY: number } | null>(null);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const midX = (t1.clientX + t2.clientX) / 2;
+      const midY = (t1.clientY + t2.clientY) / 2;
+
+      touchStartDistRef.current = dist;
+      touchStartCamRef.current = {
+        x: state.camera.x,
+        y: state.camera.y,
+        zoom: state.camera.zoom,
+        midX,
+        midY,
+      };
+    }
+  }, [state.camera]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchStartDistRef.current && touchStartCamRef.current) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const currentDist = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const currentMidX = (t1.clientX + t2.clientX) / 2;
+      const currentMidY = (t1.clientY + t2.clientY) / 2;
+
+      const scale = currentDist / touchStartDistRef.current;
+      const initialCam = touchStartCamRef.current;
+      const nextZoom = Math.min(10, Math.max(0.1, initialCam.zoom * scale));
+
+      const deltaX = currentMidX - initialCam.midX;
+      const deltaY = currentMidY - initialCam.midY;
+
+      actions.setCamera({
+        zoom: nextZoom,
+        x: initialCam.x + deltaX,
+        y: initialCam.y + deltaY,
+      });
+    }
+  }, [actions]);
+
+  const handleTouchEnd = useCallback(() => {
+    touchStartDistRef.current = null;
+    touchStartCamRef.current = null;
+  }, []);
+
   // ── Pointer Down ───────────────────────────────────────────
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -820,7 +871,10 @@ export function InfiniteCanvas({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden bg-background select-none"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      className="relative w-full h-full overflow-hidden bg-background select-none touch-none"
       style={{ cursor: getCursor() }}
     >
       {/* Grid background pattern */}
@@ -918,11 +972,15 @@ export function InfiniteCanvas({
             </g>
           ))}
 
-          {/* Render Comment Pins */}
+          {/* Render Comment Pins with Framer Motion Spring Physics */}
           {comments?.map((c) => (
-            <g
+            <motion.g
               key={c.id}
               transform={`translate(${c.x}, ${c.y})`}
+              style={{ originX: 0.5, originY: 0.5 }}
+              whileHover={{ scale: 1.25, rotate: [0, -5, 5, 0] }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 12 }}
               className="cursor-pointer"
               onClick={(e) => {
                 e.stopPropagation();
@@ -934,12 +992,12 @@ export function InfiniteCanvas({
                 fill={c.isResolved ? '#64748b' : '#0ea5e9'}
                 stroke="#ffffff"
                 strokeWidth="2"
-                className="shadow-md transition-transform hover:scale-110"
+                className="shadow-lg transition-colors"
               />
               <text x="0" y="4" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold">
                 💬
               </text>
-            </g>
+            </motion.g>
           ))}
         </g>
       </svg>

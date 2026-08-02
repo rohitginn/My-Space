@@ -40,6 +40,19 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
   const [comments, setComments] = useState<any[]>([]);
   const socketRef = useRef<Socket | null>(null);
 
+  // Fetch persistent canvas comments from database
+  useQuery({
+    queryKey: ['co-canvas-comments', workspaceId, id],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      const { data } = await api.get(`/workspaces/${workspaceId}/canvases/${id}/comments`);
+      const fetched = data.data || [];
+      setComments(fetched);
+      return fetched;
+    },
+    enabled: !!workspaceId,
+  });
+
   // Initialize the custom canvas engine with loaded data
   const engine = useCanvasEngine(drawing.documentData as CanvasDocument | undefined);
   const { loadDocument } = engine;
@@ -82,13 +95,28 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
     const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000', { auth: { token } });
     socket.emit('co-canvas:join', { workspaceId, canvasId: id, userName, userColor });
 
+    // Flush offline queued actions on reconnect
+    socket.on('connect', () => {
+      try {
+        const pendingQueue = sessionStorage.getItem(`offline-canvas-actions-${id}`);
+        if (pendingQueue) {
+          const actions: any[] = JSON.parse(pendingQueue);
+          actions.forEach((act) => socket.emit(act.event, act.data));
+          sessionStorage.removeItem(`offline-canvas-actions-${id}`);
+        }
+      } catch {}
+    });
+
     socket.on('co-canvas:updated', ({ documentData }: { documentData: CanvasDocument }) => loadDocument(documentData));
     socket.on('co-canvas:presence', (users: { socketId: string; userId: string; userName: string; userColor: string }[]) => setActiveUsers(users));
     socket.on('co-canvas:cursor-moved', (cursor: { userId: string; x: number; y: number; name: string; color: string }) => {
       setRemoteCursors((prev) => ({ ...prev, [cursor.userId]: cursor }));
     });
     socket.on('co-canvas:comment-added', (comment: any) => {
-      setComments((prev) => [...prev, comment]);
+      setComments((prev) => {
+        if (prev.some((c) => c.id === comment.id)) return prev;
+        return [...prev, comment];
+      });
     });
     socket.on('co-canvas:comment-resolved-toggled', ({ commentId }: { commentId: string }) => {
       setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
@@ -96,6 +124,7 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
 
     socketRef.current = socket;
     return () => {
+      socket.off('connect');
       socket.off('co-canvas:updated');
       socket.off('co-canvas:presence');
       socket.off('co-canvas:cursor-moved');
@@ -134,36 +163,39 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
     });
   }, [workspaceId, id]);
 
-  const handleAddComment = useCallback((pt: { x: number; y: number }, content: string) => {
-    if (!workspaceId || !socketRef.current) return;
-    const userStr = localStorage.getItem('user');
-    let userName = 'Collaborator';
-    if (userStr) {
-      try {
-        const u = JSON.parse(userStr);
-        if (u.name) userName = u.name;
-      } catch {}
+  const handleAddComment = useCallback(async (pt: { x: number; y: number }, content: string) => {
+    if (!workspaceId) return;
+    try {
+      const { data } = await api.post(`/workspaces/${workspaceId}/canvases/${id}/comments`, {
+        x: pt.x,
+        y: pt.y,
+        content,
+      });
+      const newComment = data.data;
+      setComments((prev) => [...prev, newComment]);
+
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('co-canvas:comment-add', { workspaceId, canvasId: id, comment: newComment });
+      } else {
+        // Queue offline
+        const pendingQueue = JSON.parse(sessionStorage.getItem(`offline-canvas-actions-${id}`) || '[]');
+        pendingQueue.push({ event: 'co-canvas:comment-add', data: { workspaceId, canvasId: id, comment: newComment } });
+        sessionStorage.setItem(`offline-canvas-actions-${id}`, JSON.stringify(pendingQueue));
+      }
+    } catch (e) {
+      console.error('Failed to create comment', e);
     }
-    const newComment = {
-      id: String(Date.now()),
-      canvasId: id,
-      workspaceId,
-      userId: socketRef.current.id || 'user',
-      userName,
-      x: pt.x,
-      y: pt.y,
-      content,
-      isResolved: false,
-      createdAt: new Date().toISOString(),
-    };
-    setComments((prev) => [...prev, newComment]);
-    socketRef.current.emit('co-canvas:comment-add', { workspaceId, canvasId: id, comment: newComment });
   }, [workspaceId, id]);
 
-  const handleToggleResolveComment = useCallback((commentId: string) => {
+  const handleToggleResolveComment = useCallback(async (commentId: string) => {
     setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
-    if (workspaceId && socketRef.current) {
-      socketRef.current.emit('co-canvas:comment-toggle-resolve', { workspaceId, canvasId: id, commentId });
+    try {
+      await api.patch(`/comments/${commentId}/toggle-resolve`);
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('co-canvas:comment-toggle-resolve', { workspaceId, canvasId: id, commentId });
+      }
+    } catch (e) {
+      console.error('Failed to toggle comment resolution', e);
     }
   }, [workspaceId, id]);
 
