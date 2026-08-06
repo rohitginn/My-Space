@@ -94,7 +94,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-background p-8 relative overflow-y-auto">
+    <div className="flex min-h-full w-full flex-col bg-background p-4 relative overflow-y-auto sm:p-8 lg:h-full">
       <header className="mb-8 z-10 shrink-0">
         <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Settings</h1>
         <p className="text-muted mt-1.5 text-sm">Manage your account workspace, profile preferences, and security settings.</p>

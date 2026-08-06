@@ -12,7 +12,7 @@ import { motion } from 'framer-motion';
 import { io, Socket } from 'socket.io-client';
 import api from '@/lib/api';
 import { InfiniteCanvas, useCanvasEngine } from '@/lib/canvas';
-import type { CanvasDocument } from '@/lib/canvas';
+import type { CanvasDocument, CommentPin, RoomUser } from '@/lib/canvas';
 
 function debounce(func: (data: CanvasDocument) => void, wait: number) {
   let timeout: NodeJS.Timeout | null = null;
@@ -35,11 +35,24 @@ type DrawingDetail = {
 function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: DrawingDetail; workspaceId?: string }) {
   const router = useRouter();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
-  const [activeUsers, setActiveUsers] = useState<{ socketId: string; userId: string; userName: string; userColor: string }[]>([]);
+  const [activeUsers, setActiveUsers] = useState<RoomUser[]>([]);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { userId: string; x: number; y: number; name: string; color: string }>>({});
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<CommentPin[]>([]);
   const socketRef = useRef<Socket | null>(null);
+  const lastCursorEmitAtRef = useRef(0);
 
+  // Fetch persistent canvas comments from database
+  useQuery({
+    queryKey: ['co-canvas-comments', workspaceId, id],
+    queryFn: async () => {
+      if (!workspaceId) return [];
+      const { data } = await api.get(`/workspaces/${workspaceId}/canvases/${id}/comments`);
+      const fetched = (data.data || []) as CommentPin[];
+      setComments(fetched);
+      return fetched;
+    },
+    enabled: !!workspaceId,
+  });
   // Initialize the custom canvas engine with loaded data
   const engine = useCanvasEngine(drawing.documentData as CanvasDocument | undefined);
   const { loadDocument } = engine;
@@ -71,7 +84,7 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
     const token = localStorage.getItem('accessToken');
     const userStr = localStorage.getItem('user');
     let userName = 'Collaborator';
-    let userColor = '#3b82f6';
+    const userColor = '#3b82f6';
     if (userStr) {
       try {
         const u = JSON.parse(userStr);
@@ -82,13 +95,28 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
     const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000', { auth: { token } });
     socket.emit('co-canvas:join', { workspaceId, canvasId: id, userName, userColor });
 
+    // Flush offline queued actions on reconnect
+    socket.on('connect', () => {
+      try {
+        const pendingQueue = sessionStorage.getItem(`offline-canvas-actions-${id}`);
+        if (pendingQueue) {
+          const actions: { event: string; data: unknown }[] = JSON.parse(pendingQueue);
+          actions.forEach((act) => socket.emit(act.event, act.data));
+          sessionStorage.removeItem(`offline-canvas-actions-${id}`);
+        }
+      } catch {}
+    });
+
     socket.on('co-canvas:updated', ({ documentData }: { documentData: CanvasDocument }) => loadDocument(documentData));
-    socket.on('co-canvas:presence', (users: { socketId: string; userId: string; userName: string; userColor: string }[]) => setActiveUsers(users));
+    socket.on('co-canvas:presence', (users: RoomUser[]) => setActiveUsers(users));
     socket.on('co-canvas:cursor-moved', (cursor: { userId: string; x: number; y: number; name: string; color: string }) => {
       setRemoteCursors((prev) => ({ ...prev, [cursor.userId]: cursor }));
     });
-    socket.on('co-canvas:comment-added', (comment: any) => {
-      setComments((prev) => [...prev, comment]);
+    socket.on('co-canvas:comment-added', (comment: CommentPin) => {
+      setComments((prev) => {
+        if (prev.some((c) => c.id === comment.id)) return prev;
+        return [...prev, comment];
+      });
     });
     socket.on('co-canvas:comment-resolved-toggled', ({ commentId }: { commentId: string }) => {
       setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
@@ -104,6 +132,8 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
       socket.emit('co-canvas:leave', { workspaceId, canvasId: id });
       socket.disconnect();
       socketRef.current = null;
+      lastCursorEmitAtRef.current = 0;
+      setRemoteCursors({});
     };
   }, [id, loadDocument, workspaceId]);
 
@@ -116,6 +146,9 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
 
   const handlePointerMoveWorld = useCallback(({ x, y }: { x: number; y: number }) => {
     if (!workspaceId || !socketRef.current) return;
+    const now = performance.now();
+    if (now - lastCursorEmitAtRef.current < 33) return;
+    lastCursorEmitAtRef.current = now;
     const userStr = localStorage.getItem('user');
     let name = 'Collaborator';
     if (userStr) {

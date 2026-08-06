@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "NODE_OPTIONS='--max-old-space-size=4096' pnpm -r --parallel dev",
-    "dev:web": "NODE_OPTIONS='--max-old-space-size=4096' pnpm --filter web dev",
+    "dev": "pnpm -r --parallel dev",
+    "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter api dev",
-    "dev:all": "NODE_OPTIONS='--max-old-space-size=4096' pnpm -r --parallel dev",
+    "dev:all": "pnpm -r --parallel dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint"

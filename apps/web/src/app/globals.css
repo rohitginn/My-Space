@@ -78,7 +78,7 @@ body {
     transform: translate3d(0, 0, 0) rotate(0deg);
   }
   to {
-    transform: translate3d(0, 72px, 0) rotate(-2.5deg);
+    transform: translate3d(0, 28px, 0) rotate(-1deg);
   }
 }
 
@@ -87,7 +87,7 @@ body {
     transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translate3d(-48px, 0, 0);
+    transform: translate3d(-18px, 0, 0);
   }
 }
 
@@ -102,6 +102,16 @@ body {
     animation: landing-tools-settle linear both;
     animation-range: entry 20% cover 70%;
     animation-timeline: view();
+  }
+}
+
+@media (max-width: 767px) {
+  .landing-scroll-image {
+    animation-range: 0% 22%;
+  }
+
+  .landing-tools-motion {
+    animation-range: entry 5% cover 50%;
   }
 }
 

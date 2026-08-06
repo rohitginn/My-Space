@@ -10,3 +10,4 @@ coverage
 .pnp
 .pnp.js
 *.tsbuildinfo
+.pnpm-store

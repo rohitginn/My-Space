@@ -159,7 +159,7 @@ export default function FocusRoom() {
   return (
     <div 
       ref={containerRef}
-      className={`relative w-full transition-all duration-700 ${isFullscreen ? 'h-screen fixed inset-0 z-50 bg-background flex items-center justify-center' : 'h-full p-8 max-w-5xl mx-auto overflow-y-auto'}`}
+      className={`relative min-h-full w-full transition-all duration-700 ${isFullscreen ? 'min-h-[100dvh] fixed inset-0 z-50 bg-background flex items-center justify-center' : 'p-4 sm:p-8 max-w-5xl mx-auto overflow-y-auto'}`}
     >
       {/* Ambient Video Background (Hidden visually, audio only) */}
       <div className="w-0 h-0 opacity-0 pointer-events-none absolute">
@@ -172,11 +172,11 @@ export default function FocusRoom() {
         ></iframe>
       </div>
 
-      <div className={`relative z-10 w-full max-w-2xl mx-auto flex flex-col items-center justify-center h-full ${isFullscreen ? 'scale-125' : ''}`}>
+      <div className={`relative z-10 w-full max-w-2xl mx-auto flex flex-col items-center justify-center min-h-full ${isFullscreen ? 'scale-125' : ''}`}>
         
-        <header className="mb-12 text-center w-full">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground mb-2">Focus Room</h1>
-          <p className="text-muted text-lg">Deep work mode. Drop in and get it done.</p>
+        <header className="mb-8 text-center w-full sm:mb-12">
+          <h1 className="mb-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Focus Room</h1>
+          <p className="text-base text-muted sm:text-lg">Deep work mode. Drop in and get it done.</p>
         </header>
 
         {/* Task Selector */}
@@ -201,7 +201,7 @@ export default function FocusRoom() {
         </div>
 
         {/* Timer Circle */}
-        <div className="relative w-80 h-80 flex items-center justify-center mb-12">
+        <div className="relative mb-8 flex h-[min(78vw,20rem)] w-[min(78vw,20rem)] items-center justify-center sm:mb-12">
           <svg className="absolute inset-0 w-full h-full transform -rotate-90">
             <circle cx="160" cy="160" r="150" className="stroke-surface-glass" strokeWidth="8" fill="transparent" />
             <circle 
@@ -214,7 +214,7 @@ export default function FocusRoom() {
             />
           </svg>
           <div className="text-center">
-            <div className={`text-7xl font-bold font-mono tracking-tighter ${isBreak ? 'text-accent-green' : 'text-accent-blue'}`}>
+            <div className={`text-[clamp(3.4rem,16vw,4.5rem)] font-bold font-mono tracking-tighter ${isBreak ? 'text-accent-green' : 'text-accent-blue'}`}>
               {formatTime(timeLeft)}
             </div>
             <div className="text-muted mt-2 text-sm uppercase tracking-widest font-bold">
@@ -224,7 +224,7 @@ export default function FocusRoom() {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-6 bg-surface/80 glass rounded-full px-8 py-4 border border-border shadow-2xl">
+        <div className="flex items-center gap-4 bg-surface/80 glass rounded-full px-5 py-3 border border-border shadow-2xl sm:gap-6 sm:px-8 sm:py-4">
           <div 
             className="flex items-center gap-2 text-muted hover:text-foreground cursor-pointer py-2"
             onMouseEnter={() => setShowVolumeSlider(true)}

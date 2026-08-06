@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "nodemon --exec tsx src/index.ts",
+    "dev": "nodemon",
     "build": "tsc",
     "start": "node dist/index.js",
     "db:generate": "tsx node_modules/drizzle-kit/bin.cjs generate",

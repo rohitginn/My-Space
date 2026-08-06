@@ -402,12 +402,12 @@ export default function KanbanPage() {
 
 
   return (
-    <div className="flex flex-col h-full w-full bg-background p-8 relative overflow-hidden">
+    <div className="flex min-h-full w-full flex-col bg-background p-4 relative overflow-y-auto sm:p-8 lg:h-full lg:overflow-hidden">
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-accent-blue/5 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-accent-green/5 rounded-full blur-3xl pointer-events-none"></div>
 
       {/* Header */}
-      <header className="flex justify-between items-end mb-8 z-10 shrink-0">
+      <header className="mb-6 flex flex-col items-start gap-4 z-10 shrink-0 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground tracking-tight">{board?.title || 'Project'}</h1>
@@ -440,7 +440,7 @@ export default function KanbanPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
 
           <select 
             value={activeBoardId || ''}

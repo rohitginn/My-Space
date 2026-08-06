@@ -13,40 +13,111 @@ import {
 
 const modules = [
   {
+    name: 'Today and Inbox',
+    description: 'Capture a thought in seconds, then bring the right work into today when you are ready for it.',
+    icon: Target,
+  },
+  {
     name: 'Notes',
-    description: 'Catch ideas quickly, then keep them in a place you will return to.',
+    description: 'Keep private notes, notebooks, and journal entries close to the work they inform.',
     icon: PenLine,
   },
   {
     name: 'Tasks',
-    description: 'Turn loose intentions into work you can schedule, sort, and finish.',
-    icon: Target,
+    description: 'Turn intentions into clear tasks, with deadlines and links to the goals behind them.',
+    icon: BookOpen,
   },
   {
     name: 'Projects',
-    description: 'Move work across a live board that stays connected to your notes.',
+    description: 'Move work across boards and keep the next step visible instead of buried in a list.',
     icon: KanbanSquare,
   },
   {
     name: 'Calendar',
-    description: 'Give tasks, events, and deadlines one shared view of your time.',
+    description: 'See events, deadlines, and planned work in the same view of your week.',
     icon: CalendarDays,
   },
   {
-    name: 'Habits',
-    description: 'Build repeatable practices with a record that makes momentum visible.',
+    name: 'Habits and routines',
+    description: 'Build repeatable practices with streaks, routines, badges, and a record of momentum.',
     icon: BookOpen,
   },
   {
-    name: 'Focus and money',
-    description: 'Protect deep work with a timer, then keep recurring costs in view.',
+    name: 'Focus Room',
+    description: 'Choose one thing, run a focused session, and earn XP for following through.',
+    icon: Focus,
+  },
+  {
+    name: 'Expenses and insights',
+    description: 'Keep recurring costs and personal patterns visible without opening another system.',
     icon: CircleDollarSign,
   },
+  {
+    name: 'Personal Canvas',
+    description: 'Sketch maps, plans, sticky notes, and loose connections on an infinite board.',
+    icon: PenLine,
+  },
 ];
+
+const collaborationModules = [
+  {
+    label: 'Co-Spaces',
+    title: 'Bring the right people in.',
+    description: 'Create an invited workspace with its own members, roles, projects, notes, and canvases.',
+  },
+  {
+    label: 'Co-Canvas',
+    title: 'Think on the same surface.',
+    description: 'Work together with live cursors, presence, sticky notes, and comments that can be resolved.',
+  },
+  {
+    label: 'Shared work',
+    title: 'Keep the handoff visible.',
+    description: 'Use shared Kanban boards and Co-Notes for planning, meeting minutes, specs, and team context.',
+  },
+];
+
+const structuredData = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': 'https://app.rohitcode.tech/#organization',
+      name: 'Rohit Code',
+      url: 'https://app.rohitcode.tech/',
+    },
+    {
+      '@type': 'WebSite',
+      '@id': 'https://app.rohitcode.tech/#website',
+      url: 'https://app.rohitcode.tech/',
+      name: 'MySpace by Rohit Code',
+      description: 'A personal productivity and collaboration workspace for planning, focus, and meaningful work.',
+      publisher: { '@id': 'https://app.rohitcode.tech/#organization' },
+    },
+    {
+      '@type': 'WebApplication',
+      '@id': 'https://app.rohitcode.tech/#application',
+      name: 'MySpace',
+      applicationCategory: 'ProductivityApplication',
+      operatingSystem: 'Web',
+      url: 'https://app.rohitcode.tech/',
+      description: 'Plan days, organize tasks and projects, capture notes, track habits, run focus sessions, and collaborate in Co-Spaces.',
+      featureList: [
+        'Daily planning and inbox capture',
+        'Tasks, projects, goals, and calendar',
+        'Notes, journal, and personal canvas',
+        'Habit tracking and focus sessions',
+        'Collaborative Co-Spaces and Co-Canvas',
+      ],
+      creator: { '@id': 'https://app.rohitcode.tech/#organization' },
+    },
+  ],
+};
 
 export function LandingPage() {
   return (
     <div className="landing-page min-h-full overflow-x-hidden bg-[#171713] text-[#f0ede5] selection:bg-[#8d9971] selection:text-[#171713]">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }} />
       <header className="landing-nav sticky top-0 z-30 border-b border-[#f0ede5]/10 bg-[#171713]/95 px-5 backdrop-blur-sm sm:px-8 lg:px-12">
         <div className="mx-auto flex h-[68px] max-w-[1360px] items-center justify-between gap-4">
           <Link href="/" className="group flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.03em] text-[#f0ede5]">
@@ -56,11 +127,12 @@ export function LandingPage() {
               <span className="bg-[#d9d1c2]" />
               <span className="bg-[#aa583f]" />
             </span>
-            My Space
+            MySpace
           </Link>
           <nav className="hidden items-center gap-7 text-sm text-[#c7c1b5] md:flex" aria-label="Primary navigation">
             <a className="transition-colors hover:text-[#f0ede5]" href="#workflow">How it works</a>
             <a className="transition-colors hover:text-[#f0ede5]" href="#tools">Tools</a>
+            <a className="transition-colors hover:text-[#f0ede5]" href="#collaboration">Co-Spaces</a>
             <a className="transition-colors hover:text-[#f0ede5]" href="#focus">Focus</a>
           </nav>
           <Link
@@ -80,7 +152,7 @@ export function LandingPage() {
               One space. Every day.
             </h1>
             <p className="mt-7 max-w-[455px] text-lg leading-8 text-[#c7c1b5]">
-              Tasks, notes, goals, and focus rituals work together so your day has one home.
+              MySpace is a personal productivity workspace for planning your day, organizing tasks and projects, capturing ideas, and collaborating with a small team.
             </p>
             <div className="mt-9 flex items-center gap-5">
               <Link
@@ -115,7 +187,7 @@ export function LandingPage() {
                 Your tools should hand work to each other.
               </h2>
               <p className="max-w-[530px] text-lg leading-8 text-[#c7c1b5]">
-                My Space turns a scattered day into a connected loop, from the first thought to the work that actually gets done.
+                MySpace turns a scattered day into a connected loop, from the first thought to the work that actually gets done, alone or with a small team.
               </p>
             </div>
 
@@ -123,17 +195,17 @@ export function LandingPage() {
               <article className="border-r border-[#f0ede5]/15 px-6 pb-10 pt-2 md:px-8">
                 <span className="text-sm font-medium text-[#aeb89a]">Capture</span>
                 <h3 className="mt-10 text-3xl font-semibold tracking-[-0.05em] text-[#f0ede5]">Keep the thought.</h3>
-                <p className="mt-4 max-w-[260px] leading-7 text-[#c7c1b5]">Use notes and canvas boards to hold the pieces before they become another forgotten tab.</p>
+                <p className="mt-4 max-w-[260px] leading-7 text-[#c7c1b5]">Quick Capture, Inbox, Notes, Journal, and Canvas give every loose idea a safe place to land.</p>
               </article>
               <article className="border-r border-[#f0ede5]/15 px-6 pb-10 pt-2 md:px-8">
                 <span className="text-sm font-medium text-[#aeb89a]">Shape</span>
                 <h3 className="mt-10 text-3xl font-semibold tracking-[-0.05em] text-[#f0ede5]">Give it a place.</h3>
-                <p className="mt-4 max-w-[260px] leading-7 text-[#c7c1b5]">Turn it into tasks, project cards, calendar time, and goals that have a real deadline.</p>
+                <p className="mt-4 max-w-[260px] leading-7 text-[#c7c1b5]">Today, Tasks, Projects, Calendar, and Goals turn good intentions into a plan you can see.</p>
               </article>
               <article className="border-r border-[#f0ede5]/15 px-6 pb-10 pt-2 md:px-8">
-                <span className="text-sm font-medium text-[#aeb89a]">Return</span>
-                <h3 className="mt-10 text-3xl font-semibold tracking-[-0.05em] text-[#f0ede5]">Make it stick.</h3>
-                <p className="mt-4 max-w-[260px] leading-7 text-[#c7c1b5]">Habits, focus sessions, XP, and progress make the work you repeat easier to notice.</p>
+                <span className="text-sm font-medium text-[#aeb89a]">Share</span>
+                <h3 className="mt-10 text-3xl font-semibold tracking-[-0.05em] text-[#f0ede5]">Make room for others.</h3>
+                <p className="mt-4 max-w-[260px] leading-7 text-[#c7c1b5]">Co-Spaces add live canvases, shared projects, and team notes without opening up your personal space.</p>
               </article>
             </div>
           </div>
@@ -142,9 +214,8 @@ export function LandingPage() {
         <section id="tools" className="relative px-5 py-20 sm:px-8 lg:px-12 lg:py-28">
           <div className="mx-auto grid max-w-[1360px] gap-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,0.7fr)] lg:items-start">
             <div>
-              <p className="text-sm font-medium text-[#aeb89a]">Everything has a home.</p>
-              <h2 className="mt-7 max-w-[690px] text-[clamp(2.35rem,5.1vw,5.25rem)] font-semibold leading-[0.95] tracking-[-0.065em] text-[#f0ede5]">
-                Keep your whole operating system close.
+              <h2 className="max-w-[690px] text-[clamp(2.35rem,5.1vw,5.25rem)] font-semibold leading-[0.95] tracking-[-0.065em] text-[#f0ede5]">
+                The small systems that make a day work.
               </h2>
               <div className="landing-tools-motion mt-14 grid gap-x-10 gap-y-12 sm:grid-cols-2">
                 {modules.map((module) => {
@@ -173,6 +244,30 @@ export function LandingPage() {
           </div>
         </section>
 
+        <section id="collaboration" className="border-y border-[#f0ede5]/10 bg-[#202019] px-5 py-20 sm:px-8 lg:px-12 lg:py-28">
+          <div className="mx-auto max-w-[1360px]">
+            <div className="max-w-[720px]">
+              <p className="text-sm font-medium text-[#aeb89a]">When work becomes shared.</p>
+              <h2 className="mt-7 text-[clamp(2.35rem,5vw,5.25rem)] font-semibold leading-[0.95] tracking-[-0.065em] text-[#f0ede5]">
+                Private by default. Collaborative by choice.
+              </h2>
+              <p className="mt-7 max-w-[560px] text-lg leading-8 text-[#c7c1b5]">
+                Co-Spaces give a small team a focused room to plan, draw, document, and move work forward together.
+              </p>
+            </div>
+
+            <div className="mt-14 grid gap-0 border-l border-[#f0ede5]/15 md:grid-cols-[1.15fr_0.85fr] md:grid-rows-2">
+              {collaborationModules.map((module, index) => (
+                <article key={module.label} className={`border-r border-[#f0ede5]/15 px-6 pb-8 pt-2 md:px-8 ${index === 0 ? 'md:row-span-2 md:pb-10' : ''}`}>
+                  <span className="text-sm font-medium text-[#aeb89a]">{module.label}</span>
+                  <h3 className="mt-9 max-w-[260px] text-2xl font-semibold tracking-[-0.045em] text-[#f0ede5]">{module.title}</h3>
+                  <p className="mt-4 max-w-[290px] leading-7 text-[#c7c1b5]">{module.description}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section id="focus" className="bg-[#8d9971] px-5 py-20 text-[#171713] sm:px-8 lg:px-12 lg:py-28">
           <div className="mx-auto grid max-w-[1360px] gap-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
             <div className="relative border-l-2 border-[#171713] pl-6 sm:pl-9">
@@ -186,7 +281,7 @@ export function LandingPage() {
                 Use the focus room to choose what matters now. The timer makes a session tangible, and completing it earns XP.
               </p>
               <p>
-                Track habits, goals, recurring expenses, and your calendar beside that session. The small systems stay visible together.
+                Track habits, routines, goals, recurring expenses, and your calendar beside that session. The small systems stay visible together.
               </p>
             </div>
           </div>
@@ -195,8 +290,7 @@ export function LandingPage() {
         <section className="px-5 py-24 sm:px-8 lg:px-12 lg:py-32">
           <div className="mx-auto flex max-w-[1360px] flex-col items-start justify-between gap-10 lg:flex-row lg:items-end">
             <div>
-              <p className="text-sm font-medium text-[#aeb89a]">Make room for what matters.</p>
-              <h2 className="mt-7 max-w-[760px] text-[clamp(2.7rem,6vw,6.5rem)] font-semibold leading-[0.9] tracking-[-0.075em] text-[#f0ede5]">
+              <h2 className="max-w-[760px] text-[clamp(2.7rem,6vw,6.5rem)] font-semibold leading-[0.9] tracking-[-0.075em] text-[#f0ede5]">
                 One clear place. A more workable day.
               </h2>
             </div>
@@ -212,7 +306,7 @@ export function LandingPage() {
 
       <footer className="border-t border-[#f0ede5]/10 px-5 py-8 sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-[1360px] flex-col gap-4 text-sm text-[#979287] sm:flex-row sm:items-center sm:justify-between">
-          <span>My Space brings your personal systems together.</span>
+          <span>MySpace by Rohit Code brings your personal systems together.</span>
           <div className="flex items-center gap-5">
             <Link className="transition-colors hover:text-[#f0ede5]" href="/login">Sign in</Link>
             <Link className="transition-colors hover:text-[#f0ede5]" href="/register">Start your space</Link>

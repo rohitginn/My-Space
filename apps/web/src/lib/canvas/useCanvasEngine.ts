@@ -37,6 +37,13 @@ const DEFAULT_TOOL_STYLE: ToolStyle = {
 };
 
 const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
+const MAX_HISTORY_ENTRIES = 40;
+
+function cloneShapes(shapes: Record<string, CanvasShape>) {
+  return typeof structuredClone === 'function'
+    ? structuredClone(shapes)
+    : JSON.parse(JSON.stringify(shapes)) as Record<string, CanvasShape>;
+}
 
 function createInitialState(doc?: CanvasDocument): CanvasEngineState {
   return {
@@ -211,12 +218,12 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
   const historyIndexRef = useRef(-1);
 
   const pushHistory = useCallback(() => {
-    const snapshot = JSON.parse(JSON.stringify(state.shapes));
+    const snapshot = cloneShapes(state.shapes);
     historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
     historyRef.current.push({ shapes: snapshot });
     historyIndexRef.current = historyRef.current.length - 1;
 
-    if (historyRef.current.length > 100) {
+    if (historyRef.current.length > MAX_HISTORY_ENTRIES) {
       historyRef.current.shift();
       historyIndexRef.current--;
     }
@@ -227,7 +234,7 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
     historyIndexRef.current--;
     const prev = historyRef.current[historyIndexRef.current];
     if (prev) {
-      dispatch({ type: 'RESTORE_SHAPES', shapes: JSON.parse(JSON.stringify(prev.shapes)) });
+      dispatch({ type: 'RESTORE_SHAPES', shapes: cloneShapes(prev.shapes) });
     }
   }, []);
 
@@ -236,7 +243,7 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
     historyIndexRef.current++;
     const next = historyRef.current[historyIndexRef.current];
     if (next) {
-      dispatch({ type: 'RESTORE_SHAPES', shapes: JSON.parse(JSON.stringify(next.shapes)) });
+      dispatch({ type: 'RESTORE_SHAPES', shapes: cloneShapes(next.shapes) });
     }
   }, []);
 

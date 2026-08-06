@@ -58,13 +58,13 @@ export default function ExpensesPage() {
   const totalExpenses = expenses ? expenses.reduce((sum, e) => sum + parseFloat(e.amount), 0) : 0;
 
   return (
-    <div className="flex flex-col h-full w-full bg-background relative overflow-hidden">
+    <div className="flex min-h-full w-full flex-col bg-background relative overflow-y-auto lg:h-full lg:overflow-hidden">
       <div className="absolute bottom-0 left-1/4 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-      <div className="flex-1 overflow-y-auto p-12 z-10 relative">
+      <div className="flex-1 overflow-y-auto p-4 z-10 relative sm:p-12">
         <div className="max-w-4xl mx-auto w-full">
           
-          <header className="flex justify-between items-end mb-12">
+          <header className="mb-8 flex flex-col items-start gap-4 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">Expenses</h1>
               <p className="text-muted text-lg">Track your spending and subscriptions.</p>
@@ -79,7 +79,7 @@ export default function ExpensesPage() {
           </header>
 
           {/* Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          <div className="mb-8 grid grid-cols-1 gap-4 sm:mb-12 sm:gap-6 md:grid-cols-3">
             <div className="bg-surface-glass border border-border p-6 rounded-3xl shadow-sm">
               <div className="flex items-center gap-3 text-muted font-medium mb-4">
                 <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg"><DollarSign size={18} /></div>

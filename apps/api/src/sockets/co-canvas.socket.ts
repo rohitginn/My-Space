@@ -10,6 +10,19 @@ interface RoomUser {
 // Map roomKey -> Map<socketId, RoomUser>
 const roomUsers = new Map<string, Map<string, RoomUser>>();
 
+function removeSocketFromRoom(io: Server, socketId: string, roomKey: string) {
+  const userMap = roomUsers.get(roomKey);
+  if (!userMap) return;
+
+  userMap.delete(socketId);
+  if (userMap.size === 0) {
+    roomUsers.delete(roomKey);
+    return;
+  }
+
+  io.to(roomKey).emit('co-canvas:presence', Array.from(userMap.values()));
+}
+
 export function registerCoCanvasSocket(io: Server, socket: Socket) {
   socket.on('co-canvas:join', ({ workspaceId, canvasId, userName, userColor }: { workspaceId: string; canvasId: string; userName?: string; userColor?: string }) => {
     const roomKey = `co-canvas:${workspaceId}:${canvasId}`;
@@ -36,16 +49,7 @@ export function registerCoCanvasSocket(io: Server, socket: Socket) {
   socket.on('co-canvas:leave', ({ workspaceId, canvasId }: { workspaceId: string; canvasId: string }) => {
     const roomKey = `co-canvas:${workspaceId}:${canvasId}`;
     socket.leave(roomKey);
-
-    const userMap = roomUsers.get(roomKey);
-    if (userMap) {
-      userMap.delete(socket.id);
-      if (userMap.size === 0) {
-        roomUsers.delete(roomKey);
-      } else {
-        io.to(roomKey).emit('co-canvas:presence', Array.from(userMap.values()));
-      }
-    }
+    removeSocketFromRoom(io, socket.id, roomKey);
   });
 
   socket.on('co-canvas:update', (data: { workspaceId: string; canvasId: string; documentData: unknown }) => {
@@ -70,17 +74,8 @@ export function registerCoCanvasSocket(io: Server, socket: Socket) {
   socket.on('disconnecting', () => {
     for (const roomKey of socket.rooms) {
       if (roomKey.startsWith('co-canvas:')) {
-        const userMap = roomUsers.get(roomKey);
-        if (userMap) {
-          userMap.delete(socket.id);
-          if (userMap.size === 0) {
-            roomUsers.delete(roomKey);
-          } else {
-            io.to(roomKey).emit('co-canvas:presence', Array.from(userMap.values()));
-          }
-        }
+        removeSocketFromRoom(io, socket.id, roomKey);
       }
     }
   });
 }
-
