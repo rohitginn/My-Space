@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initAuth();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (!isLoading && !user && !publicRoutes.has(pathname)) {

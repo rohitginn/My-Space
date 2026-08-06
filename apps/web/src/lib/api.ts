@@ -1,6 +1,11 @@
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const publicRoutes = new Set(['/', '/login', '/register']);
+
+const isPublicRoute = () => (
+  typeof window !== 'undefined' && publicRoutes.has(window.location.pathname)
+);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -32,9 +37,11 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
           return api(originalRequest);
         }
-      } catch (refreshError) {
+      } catch {
         localStorage.removeItem('accessToken');
-        window.location.href = '/login';
+        if (!isPublicRoute()) {
+          window.location.replace('/login');
+        }
       }
     }
     return Promise.reject(error);

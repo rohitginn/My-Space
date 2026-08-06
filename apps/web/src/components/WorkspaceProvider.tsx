@@ -1,34 +1,44 @@
 'use client';
 
-import { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import api from '@/lib/api';
 
 export type Workspace = { id: string; name: string; slug: string; description: string | null; accentColor: string; type: 'team' | 'study_group' | 'client'; role: string; memberCount: number; inviteCode: string };
 type WorkspaceContextValue = { activeWorkspace: Workspace | null; workspaces: Workspace[]; isLoading: boolean; isPersonalMode: boolean; switchWorkspace: (id: string | null) => void; refreshWorkspaces: () => Promise<void> };
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(undefined);
+const publicRoutes = new Set(['/', '/login', '/register']);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const isPublicPath = publicRoutes.has(pathname);
+  const hasToken = typeof window !== 'undefined' && Boolean(localStorage.getItem('accessToken'));
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [activeId, setActiveId] = useState<string | null>(() => typeof window === 'undefined' ? null : localStorage.getItem('active-workspace'));
   const [isLoading, setIsLoading] = useState(true);
 
-  const refreshWorkspaces = async () => {
+  const refreshWorkspaces = useCallback(async () => {
     const { data } = await api.get('/workspaces');
     setWorkspaces(data.data ?? []);
-  };
+  }, []);
   useEffect(() => {
+    if (isPublicPath || !hasToken) {
+      return;
+    }
+
     const load = async () => {
       try { await refreshWorkspaces(); } catch { setWorkspaces([]); } finally { setIsLoading(false); }
     };
     void load();
-  }, []);
+  }, [hasToken, isPublicPath, pathname, refreshWorkspaces]);
   const switchWorkspace = (id: string | null) => {
     setActiveId(id);
     if (id) localStorage.setItem('active-workspace', id);
     else localStorage.removeItem('active-workspace');
   };
   const activeWorkspace = workspaces.find((workspace) => workspace.id === activeId) ?? null;
-  const value = useMemo(() => ({ activeWorkspace, workspaces, isLoading, isPersonalMode: activeWorkspace === null, switchWorkspace, refreshWorkspaces }), [activeWorkspace, workspaces, isLoading]);
+  const visibleLoading = isPublicPath || !hasToken ? false : isLoading;
+  const value = useMemo(() => ({ activeWorkspace, workspaces, isLoading: visibleLoading, isPersonalMode: activeWorkspace === null, switchWorkspace, refreshWorkspaces }), [activeWorkspace, workspaces, refreshWorkspaces, visibleLoading]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }
 
