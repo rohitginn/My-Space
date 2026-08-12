@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, FileText, Loader2, Pin, Trash2, Edit3, Save, RefreshCw } from 'lucide-react';
 import api from '@/lib/api';
 import { Modal } from './Modal';
 import { CoSpaceContext } from './CoSpaceContext';
 import { useDialog } from './DialogProvider';
+import { io, Socket } from 'socket.io-client';
+import * as Y from 'yjs';
+import { applyNoteSnapshot, readNoteSnapshot } from '@/lib/collaboration/noteYjs';
 
 type Note = {
   id: string;
@@ -15,6 +18,17 @@ type Note = {
   isPinned: boolean;
   updatedAt: string;
 };
+
+function encodeYjsUpdate(update: Uint8Array) {
+  let binary = '';
+  update.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+function decodeYjsUpdate(update: string) {
+  const binary = atob(update);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
 
 export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
   const queryClient = useQueryClient();
@@ -26,6 +40,9 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const noteSocketRef = useRef<Socket | null>(null);
+  const noteDocRef = useRef<Y.Doc | null>(null);
+  const noteJoinedRef = useRef(false);
 
   // Fetch workspace notes
   const { data: notes = [], isLoading, isError, refetch } = useQuery({
@@ -42,6 +59,51 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
   });
 
   const activeNote = notes.find((n) => n.id === selectedNoteId) || notes[0] || null;
+
+  useEffect(() => {
+    if (!activeNote) return;
+    const token = localStorage.getItem('accessToken');
+    const doc = new Y.Doc();
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000', { auth: { token } });
+    const updateCache = () => {
+      const snapshot = readNoteSnapshot(doc);
+      queryClient.setQueryData<Note[]>(['workspace-notes', workspaceId], (current = []) => current.map((note) => note.id === activeNote.id ? { ...note, title: snapshot.title || 'Untitled', content: snapshot.content, updatedAt: new Date().toISOString() } : note));
+      setEditTitle(snapshot.title);
+      setEditContent(snapshot.content);
+    };
+    const handleUpdate = (update: Uint8Array, origin: unknown) => {
+      if (origin !== 'remote' && origin !== 'sync' && noteJoinedRef.current && socket.connected) socket.emit('collab:update', { workspaceId, resourceType: 'note', resourceId: activeNote.id, update: encodeYjsUpdate(update) });
+    };
+    doc.on('update', handleUpdate);
+    socket.on('collab:sync', ({ update }: { update: string }) => {
+      if (typeof update !== 'string') return;
+      Y.applyUpdate(doc, decodeYjsUpdate(update), 'sync');
+      updateCache();
+      noteJoinedRef.current = true;
+    });
+    socket.on('collab:update', ({ update }: { update: string }) => {
+      if (typeof update !== 'string') return;
+      Y.applyUpdate(doc, decodeYjsUpdate(update), 'remote');
+      updateCache();
+    });
+    const join = () => socket.emit('collab:join', { workspaceId, resourceType: 'note', resourceId: activeNote.id });
+    socket.on('connect', join);
+    if (socket.connected) join();
+    noteSocketRef.current = socket;
+    noteDocRef.current = doc;
+    return () => {
+      socket.off('connect', join);
+      socket.off('collab:sync');
+      socket.off('collab:update');
+      socket.emit('collab:leave', { workspaceId, resourceType: 'note', resourceId: activeNote.id });
+      socket.disconnect();
+      doc.off('update', handleUpdate);
+      doc.destroy();
+      noteSocketRef.current = null;
+      noteDocRef.current = null;
+      noteJoinedRef.current = false;
+    };
+  }, [activeNote?.id, queryClient, workspaceId]);
 
   // Create workspace note
   const createNote = useMutation({
@@ -177,7 +239,10 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
                 {isEditing ? (
                   <input
                     value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
+                    onChange={(e) => {
+                      setEditTitle(e.target.value);
+                      if (noteDocRef.current) applyNoteSnapshot(noteDocRef.current, { title: e.target.value, content: editContent }, 'local');
+                    }}
                     className="text-2xl font-bold bg-background border border-border rounded-xl px-3 py-1 outline-none focus:border-accent-blue w-full max-w-md"
                   />
                 ) : (
@@ -228,7 +293,10 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
                 {isEditing ? (
                   <textarea
                     value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
+                    onChange={(e) => {
+                      setEditContent(e.target.value);
+                      if (noteDocRef.current) applyNoteSnapshot(noteDocRef.current, { title: editTitle, content: e.target.value }, 'local');
+                    }}
                     placeholder="Write document in Markdown..."
                     className="w-full h-full min-h-[300px] rounded-xl border border-border bg-background p-4 text-sm font-mono text-foreground outline-none focus:border-accent-blue resize-none"
                   />

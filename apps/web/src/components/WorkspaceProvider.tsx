@@ -7,7 +7,7 @@ import api from '@/lib/api';
 export type Workspace = { id: string; name: string; slug: string; description: string | null; accentColor: string; type: 'team' | 'study_group' | 'client'; role: string; memberCount: number; inviteCode: string };
 type WorkspaceContextValue = { activeWorkspace: Workspace | null; workspaces: Workspace[]; isLoading: boolean; isPersonalMode: boolean; switchWorkspace: (id: string | null) => void; refreshWorkspaces: (signal?: AbortSignal) => Promise<void> };
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(undefined);
-const publicRoutes = new Set(['/', '/login', '/register']);
+const publicRoutes = new Set(['/', '/login', '/register', '/forgot-password', '/reset-password']);
 const isPublicPath = (path: string) => publicRoutes.has(path) || path.startsWith('/co-space/join/');
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {

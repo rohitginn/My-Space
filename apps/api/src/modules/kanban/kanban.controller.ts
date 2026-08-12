@@ -18,12 +18,12 @@ export const deleteBoard = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 export const createColumn = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await service.createColumn(userId(req), req.params.id, req.body) }));
-export const updateColumn = asyncHandler(async (req, res) => res.json({ success: true, data: await service.updateColumn(req.params.id, req.body) }));
+export const updateColumn = asyncHandler(async (req, res) => res.json({ success: true, data: await service.updateColumn(userId(req), req.params.id, req.body) }));
 export const deleteColumn = asyncHandler(async (req, res) => {
-  await service.deleteColumn(req.params.id);
+  await service.deleteColumn(userId(req), req.params.id);
   res.status(204).send();
 });
-export const reorderColumns = asyncHandler(async (req, res) => res.json({ success: true, data: await service.reorderColumns(req.body.items) }));
+export const reorderColumns = asyncHandler(async (req, res) => res.json({ success: true, data: await service.reorderColumns(userId(req), req.body.items) }));
 export const createCard = asyncHandler(async (req, res) => res.status(201).json({ success: true, data: await service.createCard(userId(req), req.params.id, req.body) }));
 export const updateCard = asyncHandler(async (req, res) => res.json({ success: true, data: await service.updateCard(userId(req), req.params.id, req.body) }));
 export const deleteCard = asyncHandler(async (req, res) => {

@@ -30,6 +30,7 @@ import { drawingsRoutes } from './modules/drawings/drawings.routes.js';
 import { adminRoutes } from './modules/admin/admin.routes.js';
 import { workspacesRoutes } from './modules/workspaces/workspaces.routes.js';
 import { coCanvasRoutes } from './modules/co-canvas/co-canvas.routes.js';
+import { notificationsRoutes } from './modules/notifications/notifications.routes.js';
 
 export function createApp() {
   const app = express();
@@ -68,6 +69,7 @@ export function createApp() {
   app.use('/api/inbox', authenticate, inboxRoutes);
   app.use('/api/today', authenticate, todayRoutes);
   app.use('/api/insights', authenticate, insightsRoutes);
+  app.use('/api/notifications', authenticate, notificationsRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/workspaces', authenticate, workspacesRoutes);
   app.use('/api', authenticate, coCanvasRoutes);

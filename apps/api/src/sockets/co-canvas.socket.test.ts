@@ -1,5 +1,10 @@
 import type { Server, Socket } from 'socket.io';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('../modules/collaboration/collaboration.service.js', () => ({
+  authorizeResource: vi.fn().mockResolvedValue({ role: 'member' }),
+}));
+
 import { registerCoCanvasSocket } from './co-canvas.socket.js';
 
 function makeSocket(id: string) {
@@ -17,7 +22,7 @@ function makeSocket(id: string) {
 
   return {
     socket,
-    trigger: (event: string, ...args: unknown[]) => handlers.get(event)?.(...args),
+    trigger: async (event: string, ...args: unknown[]) => await handlers.get(event)?.(...args),
   };
 }
 
@@ -30,32 +35,32 @@ describe('co-canvas socket lifecycle', () => {
     } as unknown as Server;
   });
 
-  it('ignores updates from sockets that have not joined a room', () => {
+  it('ignores updates from sockets that have not joined a room', async () => {
     const first = makeSocket('first');
     registerCoCanvasSocket(io, first.socket);
 
-    first.trigger('co-canvas:update', {
+    await first.trigger('co-canvas:update', {
       workspaceId: 'workspace-1',
       canvasId: 'canvas-1',
       documentData: { shapes: { leaked: true } },
     });
 
-    first.trigger('co-canvas:join', { workspaceId: 'workspace-1', canvasId: 'canvas-1' });
+    await first.trigger('co-canvas:join', { workspaceId: 'workspace-1', canvasId: 'canvas-1' });
     expect(first.socket.emit).not.toHaveBeenCalledWith('co-canvas:updated', expect.anything());
   });
 
-  it('removes the in-memory document when the last collaborator leaves', () => {
+  it('removes the in-memory document when the last collaborator leaves', async () => {
     const first = makeSocket('first');
     const second = makeSocket('second');
     registerCoCanvasSocket(io, first.socket);
     registerCoCanvasSocket(io, second.socket);
 
     const room = { workspaceId: 'workspace-1', canvasId: 'canvas-1' };
-    first.trigger('co-canvas:join', room);
-    first.trigger('co-canvas:update', { ...room, documentData: { shapes: { saved: true } } });
-    first.trigger('co-canvas:leave', room);
+    await first.trigger('co-canvas:join', room);
+    await first.trigger('co-canvas:update', { ...room, documentData: { shapes: { saved: true } } });
+    await first.trigger('co-canvas:leave', room);
 
-    second.trigger('co-canvas:join', room);
+    await second.trigger('co-canvas:join', room);
     expect(second.socket.emit).not.toHaveBeenCalledWith('co-canvas:updated', expect.anything());
   });
 });

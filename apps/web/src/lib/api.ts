@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-const publicRoutes = new Set(['/', '/login', '/register']);
+const publicRoutes = new Set(['/', '/login', '/register', '/forgot-password', '/reset-password']);
 const isPublicPath = (path: string) => publicRoutes.has(path) || path.startsWith('/co-space/join/');
 
 const isPublicRoute = () => (

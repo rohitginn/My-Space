@@ -26,7 +26,7 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const publicRoutes = new Set(['/', '/login', '/register']);
+const publicRoutes = new Set(['/', '/login', '/register', '/forgot-password', '/reset-password']);
 const isPublicPath = (path: string) => publicRoutes.has(path) || path.startsWith('/co-space/join/');
 
 export function AuthProvider({ children }: { children: ReactNode }) {

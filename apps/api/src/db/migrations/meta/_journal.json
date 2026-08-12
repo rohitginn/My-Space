@@ -29,6 +29,20 @@
       "when": 1784830253285,
       "tag": "0003_minor_nitro",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1786554302428,
+      "tag": "0004_clever_the_leader",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786554478479,
+      "tag": "0005_spooky_invisible_woman",
+      "breakpoints": true
     }
   ]
 }

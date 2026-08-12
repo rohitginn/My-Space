@@ -6,6 +6,7 @@ import { users } from '../../db/schema/users.js';
 import { workspaceMembers, workspaces } from '../../db/schema/workspaces.js';
 import { AppError } from '../../utils/AppError.js';
 import { slugify } from '../../utils/slugify.js';
+import { createNotification } from '../notifications/notifications.service.js';
 
 type WorkspaceInput = { name: string; description?: string | null; type?: 'team' | 'study_group' | 'client'; accentColor?: string };
 
@@ -77,6 +78,20 @@ export async function joinWorkspace(userId: string, inviteCode: string) {
   const [{ value: memberCount }] = await db.select({ value: count() }).from(workspaceMembers).where(eq(workspaceMembers.workspaceId, workspace.id));
   if (Number(memberCount) >= workspace.maxMembers) throw new AppError('This Co-Space is at its member limit', 409, 'WORKSPACE_FULL');
   await db.insert(workspaceMembers).values({ workspaceId: workspace.id, userId, role: 'member' });
+  const recipients = await db.select({ userId: workspaceMembers.userId })
+    .from(workspaceMembers)
+    .where(eq(workspaceMembers.workspaceId, workspace.id));
+  await Promise.all(recipients
+    .filter((recipient) => recipient.userId !== userId)
+    .map((recipient) => createNotification({
+      userId: recipient.userId,
+      workspaceId: workspace.id,
+      actorId: userId,
+      type: 'member_joined',
+      entityType: 'workspace',
+      entityId: workspace.id,
+      payload: { href: `/co-space/${workspace.id}`, workspaceName: workspace.name },
+    })));
   return workspace;
 }
 
