@@ -157,9 +157,9 @@ export function LandingPage() {
             <div className="mt-9 flex items-center gap-5">
               <Link
                 href="/register"
-                className="inline-flex items-center gap-2 bg-[#d9d1c2] px-5 py-3.5 text-sm font-semibold text-[#171713] transition-colors hover:bg-[#f0ede5]"
+                className="landing-cta inline-flex items-center gap-2 bg-[#d9d1c2] px-5 py-3.5 text-sm font-semibold text-[#171713] transition-colors hover:bg-[#f0ede5]"
               >
-                Start your space <ArrowUpRight size={16} strokeWidth={2} aria-hidden="true" />
+                Start your space <ArrowUpRight className="landing-cta-arrow" size={16} strokeWidth={2} aria-hidden="true" />
               </Link>
               <a href="#workflow" className="text-sm font-medium text-[#c7c1b5] transition-colors hover:text-[#f0ede5]">
                 See the flow
@@ -217,7 +217,7 @@ export function LandingPage() {
               <h2 className="max-w-[690px] text-[clamp(2.35rem,5.1vw,5.25rem)] font-semibold leading-[0.95] tracking-[-0.065em] text-[#f0ede5]">
                 The small systems that make a day work.
               </h2>
-              <div className="landing-tools-motion mt-14 grid gap-x-10 gap-y-12 sm:grid-cols-2">
+              <div className="landing-tools-list mt-14 grid gap-x-10 gap-y-12 sm:grid-cols-2">
                 {modules.map((module) => {
                   const Icon = module.icon;
                   return (
@@ -231,7 +231,7 @@ export function LandingPage() {
               </div>
             </div>
 
-            <div className="relative lg:pt-12">
+            <div className="landing-tools-image relative lg:pt-12">
               <span aria-hidden="true" className="absolute -right-3 top-5 hidden h-[92%] w-[70%] border-r border-t border-[#8d9971]/60 lg:block" />
               <Image
                 src="/images/myspace-weekly-kit.png"
@@ -296,9 +296,9 @@ export function LandingPage() {
             </div>
             <Link
               href="/register"
-              className="inline-flex items-center gap-3 border border-[#d9d1c2] px-5 py-3.5 text-sm font-semibold text-[#f0ede5] transition-colors hover:bg-[#d9d1c2] hover:text-[#171713]"
+              className="landing-cta inline-flex items-center gap-3 border border-[#d9d1c2] px-5 py-3.5 text-sm font-semibold text-[#f0ede5] transition-colors hover:bg-[#d9d1c2] hover:text-[#171713]"
             >
-              Start your space <ArrowUpRight size={16} strokeWidth={2} aria-hidden="true" />
+              Start your space <ArrowUpRight className="landing-cta-arrow" size={16} strokeWidth={2} aria-hidden="true" />
             </Link>
           </div>
         </section>

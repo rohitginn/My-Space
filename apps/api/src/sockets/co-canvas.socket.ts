@@ -9,6 +9,7 @@ interface RoomUser {
 
 // Map roomKey -> Map<socketId, RoomUser>
 const roomUsers = new Map<string, Map<string, RoomUser>>();
+const roomDocuments = new Map<string, { revision: number; documentData: unknown; updatedBy: string }>();
 
 function removeSocketFromRoom(io: Server, socketId: string, roomKey: string) {
   const userMap = roomUsers.get(roomKey);
@@ -17,6 +18,7 @@ function removeSocketFromRoom(io: Server, socketId: string, roomKey: string) {
   userMap.delete(socketId);
   if (userMap.size === 0) {
     roomUsers.delete(roomKey);
+    roomDocuments.delete(roomKey);
     return;
   }
 
@@ -44,6 +46,9 @@ export function registerCoCanvasSocket(io: Server, socket: Socket) {
 
     // Broadcast presence update to room
     io.to(roomKey).emit('co-canvas:presence', Array.from(userMap.values()));
+
+    const latest = roomDocuments.get(roomKey);
+    if (latest) socket.emit('co-canvas:updated', { workspaceId, canvasId, ...latest });
   });
 
   socket.on('co-canvas:leave', ({ workspaceId, canvasId }: { workspaceId: string; canvasId: string }) => {
@@ -53,7 +58,20 @@ export function registerCoCanvasSocket(io: Server, socket: Socket) {
   });
 
   socket.on('co-canvas:update', (data: { workspaceId: string; canvasId: string; documentData: unknown }) => {
-    socket.to(`co-canvas:${data.workspaceId}:${data.canvasId}`).emit('co-canvas:updated', data);
+    const roomKey = `co-canvas:${data.workspaceId}:${data.canvasId}`;
+    const userMap = roomUsers.get(roomKey);
+    if (!userMap?.has(socket.id)) return;
+
+    const previous = roomDocuments.get(roomKey);
+    const update = {
+      workspaceId: data.workspaceId,
+      canvasId: data.canvasId,
+      documentData: data.documentData,
+      revision: (previous?.revision ?? 0) + 1,
+      updatedBy: socket.data.userId || socket.id,
+    };
+    roomDocuments.set(roomKey, update);
+    socket.to(roomKey).emit('co-canvas:updated', update);
   });
 
   socket.on('co-canvas:cursor', (data: { workspaceId: string; canvasId: string; x: number; y: number; name: string; color: string }) => {

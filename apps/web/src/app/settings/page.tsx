@@ -1,7 +1,7 @@
 'use client';
 
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Moon, Sun, Monitor, User, Lock, Award, Shield, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import api from '@/lib/api';
@@ -26,6 +26,7 @@ export default function SettingsPage() {
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const logoutTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -35,6 +36,10 @@ export default function SettingsPage() {
       setBio(user.bio || '');
     }
   }, [user]);
+
+  useEffect(() => () => {
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+  }, []);
 
   if (!mounted || !user) {
     return (
@@ -82,7 +87,8 @@ export default function SettingsPage() {
         setCurrentPassword('');
         setNextPassword('');
         setConfirmPassword('');
-        setTimeout(() => {
+        logoutTimerRef.current = window.setTimeout(() => {
+          logoutTimerRef.current = null;
           logout();
         }, 2500);
       }

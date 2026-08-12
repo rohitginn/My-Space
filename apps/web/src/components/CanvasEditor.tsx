@@ -13,15 +13,32 @@ import { io, Socket } from 'socket.io-client';
 import api from '@/lib/api';
 import { InfiniteCanvas, useCanvasEngine } from '@/lib/canvas';
 import type { CanvasDocument, CommentPin, RoomUser } from '@/lib/canvas';
+import { clearLocalDocumentUpdate, enqueueLocalDocumentUpdate, loadLocalDocument, saveLocalDocument, takeLocalDocumentUpdate } from '@/lib/canvas';
 
 function debounce(func: (data: CanvasDocument) => void, wait: number) {
   let timeout: NodeJS.Timeout | null = null;
+  let pendingData: CanvasDocument | null = null;
   const debounced = (data: CanvasDocument) => {
     if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(data), wait);
+    pendingData = data;
+    timeout = setTimeout(() => {
+      timeout = null;
+      const nextData = pendingData;
+      pendingData = null;
+      if (nextData) func(nextData);
+    }, wait);
   };
   debounced.cancel = () => {
     if (timeout) clearTimeout(timeout);
+    timeout = null;
+    pendingData = null;
+  };
+  debounced.flush = () => {
+    if (timeout) clearTimeout(timeout);
+    timeout = null;
+    const nextData = pendingData;
+    pendingData = null;
+    if (nextData) func(nextData);
   };
   return debounced;
 }
@@ -40,6 +57,10 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
   const [comments, setComments] = useState<CommentPin[]>([]);
   const socketRef = useRef<Socket | null>(null);
   const lastCursorEmitAtRef = useRef(0);
+  const pendingLocalDocumentRef = useRef(false);
+  const latestLocalDocumentRef = useRef<CanvasDocument | null>(null);
+  const latestRemoteRevisionRef = useRef(0);
+  const localPersistenceKey = `canvas:${id}`;
 
   // Fetch persistent canvas comments from database
   useQuery({
@@ -57,26 +78,56 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
   const engine = useCanvasEngine(drawing.documentData as CanvasDocument | undefined);
   const { loadDocument } = engine;
 
+  useEffect(() => {
+    const saved = drawing.documentData as CanvasDocument | undefined;
+    if (saved && Object.keys(saved.shapes ?? {}).length > 0) return;
+    void loadLocalDocument(`canvas:${id}`).then((local) => {
+      if (local) loadDocument(local);
+    }).catch(() => undefined);
+  }, [drawing.documentData, id, loadDocument]);
+
   const saveMutation = useMutation({
     mutationFn: async (documentData: CanvasDocument) => {
       await api.patch(workspaceId ? `/workspaces/${workspaceId}/canvases/${id}` : `/drawings/${id}`, { documentData });
     },
-    onSuccess: () => {
+    onSuccess: (_data, savedDocument) => {
       setSaveStatus('saved');
+      if (latestLocalDocumentRef.current === savedDocument) {
+        pendingLocalDocumentRef.current = false;
+        void clearLocalDocumentUpdate(localPersistenceKey).catch(() => undefined);
+      }
     },
     onError: () => {
       setSaveStatus('error');
     },
   });
+  const saveDocument = saveMutation.mutate;
+
+  useEffect(() => {
+    // Collaborative documents are replayed by the socket connect handler so
+    // the update is broadcast after the room join has been accepted.
+    if (workspaceId) return;
+    void takeLocalDocumentUpdate(localPersistenceKey).then((queued) => {
+      if (!queued) return;
+      pendingLocalDocumentRef.current = true;
+      latestLocalDocumentRef.current = queued;
+      loadDocument(queued);
+      saveDocument(queued);
+    }).catch(() => undefined);
+  }, [loadDocument, localPersistenceKey, saveDocument, workspaceId]);
 
   // Debounced save
   const debouncedSave = useMemo(() => debounce((data: CanvasDocument) => {
       setSaveStatus('saving');
-      saveMutation.mutate(data);
-    }, 2000), [saveMutation]);
+      latestLocalDocumentRef.current = data;
+      saveDocument(data);
+    }, 2000), [saveDocument]);
 
   useEffect(() => {
-    return () => debouncedSave.cancel();
+    return () => {
+      debouncedSave.flush();
+      debouncedSave.cancel();
+    };
   }, [debouncedSave]);
 
   useEffect(() => {
@@ -96,18 +147,25 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
     socket.emit('co-canvas:join', { workspaceId, canvasId: id, userName, userColor });
 
     // Flush offline queued actions on reconnect
-    socket.on('connect', () => {
+    const handleConnect = () => {
       try {
-        const pendingQueue = sessionStorage.getItem(`offline-canvas-actions-${id}`);
-        if (pendingQueue) {
-          const actions: { event: string; data: unknown }[] = JSON.parse(pendingQueue);
-          actions.forEach((act) => socket.emit(act.event, act.data));
-          sessionStorage.removeItem(`offline-canvas-actions-${id}`);
-        }
+        void takeLocalDocumentUpdate(localPersistenceKey).then((queued) => {
+          if (!queued) return;
+          pendingLocalDocumentRef.current = true;
+          latestLocalDocumentRef.current = queued;
+          socket.emit('co-canvas:update', { workspaceId, canvasId: id, documentData: queued });
+          saveDocument(queued);
+        }).catch(() => undefined);
       } catch {}
-    });
+    };
+    socket.on('connect', handleConnect);
 
-    socket.on('co-canvas:updated', ({ documentData }: { documentData: CanvasDocument }) => loadDocument(documentData));
+    socket.on('co-canvas:updated', ({ documentData, revision = 0 }: { documentData: CanvasDocument; revision?: number }) => {
+      if (revision < latestRemoteRevisionRef.current) return;
+      latestRemoteRevisionRef.current = revision;
+      if (pendingLocalDocumentRef.current) return;
+      loadDocument(documentData);
+    });
     socket.on('co-canvas:presence', (users: RoomUser[]) => setActiveUsers(users));
     socket.on('co-canvas:cursor-moved', (cursor: { userId: string; x: number; y: number; name: string; color: string }) => {
       setRemoteCursors((prev) => ({ ...prev, [cursor.userId]: cursor }));
@@ -124,6 +182,7 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
 
     socketRef.current = socket;
     return () => {
+      socket.off('connect', handleConnect);
       socket.off('co-canvas:updated');
       socket.off('co-canvas:presence');
       socket.off('co-canvas:cursor-moved');
@@ -135,14 +194,20 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
       lastCursorEmitAtRef.current = 0;
       setRemoteCursors({});
     };
-  }, [id, loadDocument, workspaceId]);
+  }, [id, loadDocument, localPersistenceKey, saveDocument, workspaceId]);
 
   // Callback when canvas content changes
   const handleChanged = useCallback(() => {
     const doc = engine.getDocument();
+    pendingLocalDocumentRef.current = true;
+    latestLocalDocumentRef.current = doc;
     debouncedSave(doc);
-    if (workspaceId) socketRef.current?.emit('co-canvas:update', { workspaceId, canvasId: id, documentData: doc });
-  }, [engine, debouncedSave, id, workspaceId]);
+    void saveLocalDocument(localPersistenceKey, doc).catch(() => undefined);
+    void enqueueLocalDocumentUpdate(localPersistenceKey, doc).catch(() => undefined);
+    if (workspaceId && socketRef.current?.connected) {
+      socketRef.current.emit('co-canvas:update', { workspaceId, canvasId: id, documentData: doc });
+    }
+  }, [engine, debouncedSave, id, localPersistenceKey, workspaceId]);
 
   const handlePointerMoveWorld = useCallback(({ x, y }: { x: number; y: number }) => {
     if (!workspaceId || !socketRef.current) return;

@@ -3,12 +3,14 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../config/db.js';
 import { kanbanBoards, kanbanCards, kanbanColumns } from '../../db/schema/kanban.js';
 import { AppError } from '../../utils/AppError.js';
+import { getMembership } from '../workspaces/workspaces.service.js';
 
 export async function listBoards(userId: string) {
   return db.select().from(kanbanBoards).where(eq(kanbanBoards.userId, userId)).orderBy(asc(kanbanBoards.createdAt));
 }
 
-export async function listWorkspaceBoards(workspaceId: string) {
+export async function listWorkspaceBoards(userId: string, workspaceId: string) {
+  await getMembership(userId, workspaceId);
   return db.select().from(kanbanBoards).where(eq(kanbanBoards.workspaceId, workspaceId)).orderBy(asc(kanbanBoards.createdAt));
 }
 
@@ -18,19 +20,24 @@ export async function createBoard(userId: string, input: typeof kanbanBoards.$in
 }
 
 export async function createWorkspaceBoard(userId: string, workspaceId: string, input: { title: string; description?: string }) {
-  const [created] = await db.insert(kanbanBoards).values({ ...input, userId, workspaceId }).returning();
-  const columns = [
-    { boardId: created.id, title: 'To Do', color: '#64748b', sortOrder: 0 },
-    { boardId: created.id, title: 'In Progress', color: '#0ea5e9', sortOrder: 1 },
-    { boardId: created.id, title: 'Done', color: '#22c55e', sortOrder: 2 },
-  ];
-  await db.insert(kanbanColumns).values(columns);
-  return created;
+  await getMembership(userId, workspaceId);
+  return db.transaction(async (tx) => {
+    const [created] = await tx.insert(kanbanBoards).values({ ...input, userId, workspaceId }).returning();
+    const columns = [
+      { boardId: created.id, title: 'To Do', color: '#64748b', sortOrder: 0 },
+      { boardId: created.id, title: 'In Progress', color: '#0ea5e9', sortOrder: 1 },
+      { boardId: created.id, title: 'Done', color: '#22c55e', sortOrder: 2 },
+    ];
+    await tx.insert(kanbanColumns).values(columns);
+    return created;
+  });
 }
 
-export async function getBoard(_userId: string, id: string) {
+export async function getBoard(userId: string, id: string) {
   const board = await db.query.kanbanBoards.findFirst({ where: eq(kanbanBoards.id, id) });
   if (!board) throw new AppError('Board not found', 404, 'BOARD_NOT_FOUND');
+  if (board.workspaceId) await getMembership(userId, board.workspaceId);
+  else if (board.userId !== userId) throw new AppError('Board not found', 404, 'BOARD_NOT_FOUND');
 
   const columns = await db.select().from(kanbanColumns).where(eq(kanbanColumns.boardId, id)).orderBy(asc(kanbanColumns.sortOrder));
   const cards = columns.length
@@ -76,6 +83,9 @@ export async function reorderColumns(items: Array<{ id: string; sortOrder: numbe
 }
 
 export async function createCard(userId: string, columnId: string, input: typeof kanbanCards.$inferInsert) {
+  const column = await db.query.kanbanColumns.findFirst({ where: eq(kanbanColumns.id, columnId) });
+  if (!column) throw new AppError('Column not found', 404, 'COLUMN_NOT_FOUND');
+  await getBoard(userId, column.boardId);
   const [created] = await db.insert(kanbanCards).values({ ...input, userId, columnId }).returning();
   return created;
 }

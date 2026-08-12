@@ -27,6 +27,7 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const publicRoutes = new Set(['/', '/login', '/register']);
+const isPublicPath = (path: string) => publicRoutes.has(path) || path.startsWith('/co-space/join/');
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -35,36 +36,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
     const initAuth = async () => {
       const token = localStorage.getItem('accessToken');
       if (!token) {
+        if (!active) return;
         setIsLoading(false);
-        if (!publicRoutes.has(window.location.pathname)) {
+        if (!isPublicPath(window.location.pathname)) {
           router.push('/login');
         }
         return;
       }
 
       try {
-        const { data } = await api.get('/auth/me');
-        if (data.success) {
+        const { data } = await api.get('/auth/me', { signal: controller.signal });
+        if (active && data.success) {
           setUser(data.data.user);
         }
       } catch {
+        if (!active) return;
         localStorage.removeItem('accessToken');
-        if (!publicRoutes.has(window.location.pathname)) {
+        if (!isPublicPath(window.location.pathname)) {
           router.push('/login');
         }
       } finally {
-        setIsLoading(false);
+        if (active) setIsLoading(false);
       }
     };
 
-    initAuth();
+    void initAuth();
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [router]);
 
   useEffect(() => {
-    if (!isLoading && !user && !publicRoutes.has(pathname)) {
+    if (!isLoading && !user && !isPublicPath(pathname)) {
       router.push('/login');
     }
   }, [pathname, isLoading, user, router]);

@@ -132,6 +132,11 @@ function JournalPageContent() {
   });
   const preloadedRef = useRef(false);
   const moodParamAppliedRef = useRef(false);
+  const savedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+  }, []);
 
   const { data: entries, isLoading } = useQuery({
     queryKey: ['journal'],
@@ -192,7 +197,11 @@ function JournalPageContent() {
     onSuccess: () => {
       invalidateJournal();
       setShowSaved(true);
-      window.setTimeout(() => setShowSaved(false), 1500);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = window.setTimeout(() => {
+        savedTimerRef.current = null;
+        setShowSaved(false);
+      }, 1500);
     },
   });
 

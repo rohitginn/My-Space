@@ -34,6 +34,7 @@ export function Modal({ isOpen, onClose, title, children, maxWidth = 'max-w-lg' 
               <h3 className="text-lg font-semibold text-foreground tracking-tight">{title}</h3>
               <button 
                 onClick={onClose}
+                aria-label="Close dialog"
                 className="text-muted hover:text-foreground hover:bg-surface-hover p-1.5 rounded-lg transition-colors"
               >
                 <X size={20} />

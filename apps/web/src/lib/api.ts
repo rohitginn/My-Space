@@ -2,9 +2,10 @@ import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 const publicRoutes = new Set(['/', '/login', '/register']);
+const isPublicPath = (path: string) => publicRoutes.has(path) || path.startsWith('/co-space/join/');
 
 const isPublicRoute = () => (
-  typeof window !== 'undefined' && publicRoutes.has(window.location.pathname)
+  typeof window !== 'undefined' && isPublicPath(window.location.pathname)
 );
 
 const api = axios.create({

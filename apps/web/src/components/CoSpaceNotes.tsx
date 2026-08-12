@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, FileText, Loader2, Pin, Trash2, Edit3, Check, Save } from 'lucide-react';
+import { Plus, FileText, Loader2, Pin, Trash2, Edit3, Save, RefreshCw } from 'lucide-react';
 import api from '@/lib/api';
 import { Modal } from './Modal';
+import { CoSpaceContext } from './CoSpaceContext';
+import { useDialog } from './DialogProvider';
 
 type Note = {
   id: string;
@@ -17,6 +18,7 @@ type Note = {
 
 export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
   const queryClient = useQueryClient();
+  const { confirm } = useDialog();
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -26,12 +28,17 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
   const [isEditing, setIsEditing] = useState(false);
 
   // Fetch workspace notes
-  const { data: notes = [], isLoading } = useQuery({
+  const { data: notes = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['workspace-notes', workspaceId],
     queryFn: async () => {
       const { data } = await api.get(`/notes/workspaces/${workspaceId}`);
       return data.data as Note[];
     },
+  });
+
+  const togglePin = useMutation({
+    mutationFn: async (id: string) => (await api.patch(`/notes/${id}/pin`)).data.data as Note,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace-notes', workspaceId] }),
   });
 
   const activeNote = notes.find((n) => n.id === selectedNoteId) || notes[0] || null;
@@ -82,8 +89,14 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
     }
   };
 
+  const removeActiveNote = async () => {
+    if (!activeNote || !(await confirm(`Delete “${activeNote.title}”? You can restore it from Notes later.`, { title: 'Move document to trash' }))) return;
+    deleteNote.mutate(activeNote.id);
+  };
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:px-10 h-[calc(100vh-2rem)] flex flex-col">
+    <div className="mx-auto flex min-h-full max-w-7xl flex-col px-4 py-8 sm:px-6 md:px-10">
+      <CoSpaceContext workspaceId={workspaceId} current="notes" />
       {/* Header */}
       <header className="mb-6 flex items-center justify-between shrink-0">
         <div>
@@ -105,6 +118,13 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
         <div className="py-20 text-center text-muted">
           <Loader2 className="mx-auto animate-spin" size={28} />
           <p className="mt-2 text-sm">Loading workspace notes...</p>
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
+          <FileText className="mx-auto text-muted" size={36} />
+          <h3 className="mt-4 text-lg font-semibold">Documents are unavailable</h3>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">We couldn’t load the shared documents for this Co-Space.</p>
+          <button onClick={() => refetch()} className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-surface-hover cursor-pointer"><RefreshCw size={15} />Try again</button>
         </div>
       ) : notes.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-12 text-center bg-surface/50 my-auto">
@@ -140,7 +160,7 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="font-semibold text-sm truncate">{n.title}</h4>
-                  {n.isPinned && <Pin size={13} className="text-accent-blue shrink-0" />}
+                  {n.isPinned && <Pin size={13} className="text-accent-blue shrink-0" aria-label="Pinned" />}
                 </div>
                 <p className="mt-1 text-xs text-muted truncate">{n.content || 'No text content'}</p>
                 <span className="mt-2 block text-[10px] text-muted">
@@ -183,11 +203,22 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
                   )}
 
                   <button
-                    onClick={() => deleteNote.mutate(activeNote.id)}
+                    onClick={removeActiveNote}
+                    disabled={deleteNote.isPending}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted hover:text-red-500 hover:bg-surface-hover transition-colors cursor-pointer"
-                    title="Delete Note"
+                    title="Move document to trash"
+                    aria-label="Move document to trash"
                   >
-                    <Trash2 size={16} />
+                    {deleteNote.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  </button>
+                  <button
+                    onClick={() => togglePin.mutate(activeNote.id)}
+                    disabled={togglePin.isPending}
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border transition-colors cursor-pointer ${activeNote.isPinned ? 'text-accent-blue bg-accent-blue/10' : 'text-muted hover:bg-surface-hover hover:text-foreground'}`}
+                    title={activeNote.isPinned ? 'Unpin document' : 'Pin document'}
+                    aria-label={activeNote.isPinned ? 'Unpin document' : 'Pin document'}
+                  >
+                    <Pin size={15} />
                   </button>
                 </div>
               </div>

@@ -66,6 +66,25 @@ export function zoomAtPoint(
 
 /** Calculate the AABB for any shape */
 export function getShapeBounds(shape: CanvasShape): AABB {
+  const unrotated = getUnrotatedShapeBounds(shape);
+  if (!shape.rotation) return unrotated;
+
+  const center = { x: (unrotated.minX + unrotated.maxX) / 2, y: (unrotated.minY + unrotated.maxY) / 2 };
+  const corners = [
+    { x: unrotated.minX, y: unrotated.minY },
+    { x: unrotated.maxX, y: unrotated.minY },
+    { x: unrotated.maxX, y: unrotated.maxY },
+    { x: unrotated.minX, y: unrotated.maxY },
+  ].map((corner) => rotatePoint(corner, center, shape.rotation));
+  return corners.reduce((bounds, point) => ({
+    minX: Math.min(bounds.minX, point.x),
+    minY: Math.min(bounds.minY, point.y),
+    maxX: Math.max(bounds.maxX, point.x),
+    maxY: Math.max(bounds.maxY, point.y),
+  }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+}
+
+function getUnrotatedShapeBounds(shape: CanvasShape): AABB {
   if (shape.type === 'pen') {
     return getPenBounds(shape as PenShape);
   }
@@ -135,7 +154,7 @@ export function aabbOverlap(a: AABB, b: AABB): boolean {
 
 /** Check if a world-space point is inside a shape's bounds (with padding) */
 export function isPointInShape(point: Point, shape: CanvasShape, padding: number = 4): boolean {
-  const bounds = getShapeBounds(shape);
+  const bounds = shape.rotation ? getUnrotatedShapeBounds(shape) : getShapeBounds(shape);
   const padded: AABB = {
     minX: bounds.minX - padding,
     minY: bounds.minY - padding,
@@ -150,10 +169,10 @@ export function isPointInShape(point: Point, shape: CanvasShape, padding: number
   const isFilled = shape.fillStyle !== 'none' && shape.fill && shape.fill !== 'transparent' && shape.fill !== 'none';
 
   // For rectangles, text, and custom shapes: simple AABB check is sufficient
-  if (['rectangle', 'text', 'diamond', 'triangle', 'star', 'hexagon', 'parallelogram', 'trapezoid', 'cylinder', 'callout'].includes(shape.type)) {
+  if (['rectangle', 'frame', 'text', 'image', 'video', 'bookmark', 'embed', 'diamond', 'triangle', 'star', 'hexagon', 'octagon', 'cloud', 'parallelogram', 'trapezoid', 'cylinder', 'callout'].includes(shape.type)) {
     if (shape.type === 'text') return true;
 
-    if (shape.type === 'rectangle') {
+    if (shape.type === 'rectangle' || shape.type === 'frame') {
       if (isFilled) return true;
       // Hollow rectangle: must be clicked close to the borders
       const borderPadding = Math.max(12, padding + shape.strokeWidth);
@@ -164,8 +183,13 @@ export function isPointInShape(point: Point, shape: CanvasShape, padding: number
       return nearLeft || nearRight || nearTop || nearBottom;
     }
 
+    const vertices = getShapeVertices(shape);
+    if (vertices.length >= 3) {
+      if (isFilled) return pointInPolygon(point, vertices);
+      return polygonEdgeDistance(point, vertices) <= padding + shape.strokeWidth;
+    }
+
     if (!isFilled) {
-      // Hollow custom shapes: must be clicked close to the bounding box borders
       const borderPadding = Math.max(12, padding + shape.strokeWidth);
       const nearLeft = Math.abs(point.x - bounds.minX) <= borderPadding;
       const nearRight = Math.abs(point.x - bounds.maxX) <= borderPadding;
@@ -175,6 +199,14 @@ export function isPointInShape(point: Point, shape: CanvasShape, padding: number
     }
 
     return true;
+  }
+
+  if (shape.type === 'highlighter') {
+    const points = shape.points;
+    for (let i = 0; i < points.length - 1; i++) {
+      if (pointToSegmentDistance(point, points[i], points[i + 1]) <= padding + shape.strokeWidth) return true;
+    }
+    return points.length === 1 && Math.hypot(point.x - points[0].x, point.y - points[0].y) <= padding + shape.strokeWidth;
   }
 
   // For ellipses: check if point is inside the ellipse equation
@@ -225,6 +257,39 @@ export function isPointInShape(point: Point, shape: CanvasShape, padding: number
   }
 
   return true;
+}
+
+export function getShapeVertices(shape: CanvasShape): Point[] {
+  const { x, y, width: w, height: h } = shape;
+  switch (shape.type) {
+    case 'diamond': return [{ x: x + w / 2, y }, { x: x + w, y: y + h / 2 }, { x: x + w / 2, y: y + h }, { x, y: y + h / 2 }];
+    case 'triangle': return [{ x: x + w / 2, y }, { x: x + w, y: y + h }, { x, y: y + h }];
+    case 'parallelogram': return [{ x: x + w * 0.25, y }, { x: x + w, y }, { x: x + w * 0.75, y: y + h }, { x, y: y + h }];
+    case 'trapezoid': return [{ x: x + w * 0.2, y }, { x: x + w * 0.8, y }, { x: x + w, y: y + h }, { x, y: y + h }];
+    case 'hexagon': return [{ x: x + w * 0.25, y }, { x: x + w * 0.75, y }, { x: x + w, y: y + h / 2 }, { x: x + w * 0.75, y: y + h }, { x: x + w * 0.25, y: y + h }, { x, y: y + h / 2 }];
+    case 'octagon': return Array.from({ length: 8 }, (_, i) => { const angle = (i * Math.PI) / 4 - Math.PI / 8; return { x: x + w / 2 + (w / 2) * Math.cos(angle), y: y + h / 2 + (h / 2) * Math.sin(angle) }; });
+    case 'cloud': return Array.from({ length: 12 }, (_, i) => { const angle = (i * Math.PI * 2) / 12; const radius = i % 2 === 0 ? 0.5 : 0.38; return { x: x + w / 2 + w * radius * Math.cos(angle), y: y + h / 2 + h * radius * Math.sin(angle) }; });
+    default: return [];
+  }
+}
+
+function pointInPolygon(point: Point, vertices: Point[]): boolean {
+  let inside = false;
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const a = vertices[i];
+    const b = vertices[j];
+    const intersects = (a.y > point.y) !== (b.y > point.y) && point.x < ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function polygonEdgeDistance(point: Point, vertices: Point[]): number {
+  let closest = Infinity;
+  for (let i = 0; i < vertices.length; i++) {
+    closest = Math.min(closest, pointToSegmentDistance(point, vertices[i], vertices[(i + 1) % vertices.length]));
+  }
+  return closest;
 }
 
 /** Calculate distance from a point to a line segment */

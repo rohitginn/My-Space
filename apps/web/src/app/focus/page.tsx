@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Maximize, Minimize, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +30,8 @@ export default function FocusRoom() {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
+  const volumeRef = useRef(volume);
+  const completionScheduledRef = useRef(false);
 
   // Fetch active tasks to select one for focus
   const { data: tasks } = useQuery({
@@ -43,37 +45,53 @@ export default function FocusRoom() {
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
+
   // Load YouTube Player API and control the player
   useEffect(() => {
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-    }
+    let disposed = false;
+    const previousReadyHandler = window.onYouTubeIframeAPIReady;
 
     const initPlayer = () => {
+      if (disposed || playerRef.current || !window.YT?.Player) return;
+
       playerRef.current = new window.YT.Player('focus-youtube-iframe', {
         events: {
           onReady: (event: any) => {
-            event.target.setVolume(volume);
-            if (isActive) {
-              event.target.playVideo();
-            } else {
-              event.target.pauseVideo();
-            }
-          }
-        }
+            event.target.setVolume(volumeRef.current);
+          },
+        },
       });
     };
 
-    window.onYouTubeIframeAPIReady = () => {
+    const readyHandler = () => {
+      previousReadyHandler?.();
       initPlayer();
     };
 
-    if (window.YT && window.YT.Player) {
+    if (window.YT?.Player) {
       initPlayer();
+    } else {
+      window.onYouTubeIframeAPIReady = readyHandler;
     }
+
+    if (!window.YT?.Player && !document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    return () => {
+      disposed = true;
+      if (window.onYouTubeIframeAPIReady === readyHandler) {
+        window.onYouTubeIframeAPIReady = previousReadyHandler;
+      }
+      playerRef.current?.destroy?.();
+      playerRef.current = null;
+    };
   }, []);
 
   // Update volume when slider changes
@@ -95,20 +113,7 @@ export default function FocusRoom() {
     }
   }, [isActive]);
 
-  useEffect(() => {
-    let interval: any = null;
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((time) => time - 1);
-      }, 1000);
-    } else if (isActive && timeLeft === 0) {
-      handleComplete();
-      clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
-
-  const handleComplete = async () => {
+  const handleComplete = useCallback(async () => {
     setIsActive(false);
     confetti({
       particleCount: 150,
@@ -118,17 +123,39 @@ export default function FocusRoom() {
     });
 
     if (!isBreak) {
-      // Award XP for finishing a pomodoro
       await api.patch('/users/me/xp', { amount: 15 }).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
       await alert('Focus session complete! You earned +15 XP.');
       setIsBreak(true);
-      setTimeLeft(5 * 60); // 5 min break
+      setTimeLeft(5 * 60);
     } else {
       setIsBreak(false);
       setTimeLeft(25 * 60);
     }
-  };
+  }, [alert, isBreak, queryClient]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    if (isActive && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((time) => time - 1);
+      }, 1000);
+    }
+    if (!isActive) completionScheduledRef.current = false;
+    if (isActive && timeLeft === 0 && !completionScheduledRef.current) {
+      completionScheduledRef.current = true;
+      const completionTimer = window.setTimeout(() => {
+        void handleComplete();
+      }, 0);
+      return () => {
+        if (interval) clearInterval(interval);
+        window.clearTimeout(completionTimer);
+      };
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [handleComplete, isActive, timeLeft]);
 
   const toggleTimer = () => setIsActive(!isActive);
   
@@ -139,13 +166,19 @@ export default function FocusRoom() {
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen().catch(err => console.error(err));
-      setIsFullscreen(true);
+      containerRef.current?.requestFullscreen().catch((err) => console.error(err));
     } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+      document.exitFullscreen().catch((err) => console.error(err));
     }
   };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Format time (MM:SS)
   const formatTime = (seconds: number) => {

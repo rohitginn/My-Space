@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowRight, Check, Loader2 } from 'lucide-react';
@@ -21,6 +21,11 @@ export function QuickCapture({
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const confirmationTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (confirmationTimerRef.current) clearTimeout(confirmationTimerRef.current);
+  }, []);
 
   const captureMutation = useMutation({
     mutationFn: async (value: string) => {
@@ -32,7 +37,11 @@ export function QuickCapture({
       setShowConfirmation(true);
       queryClient.invalidateQueries({ queryKey: ['inbox'] });
       onCaptured?.();
-      window.setTimeout(() => setShowConfirmation(false), 1500);
+      if (confirmationTimerRef.current) clearTimeout(confirmationTimerRef.current);
+      confirmationTimerRef.current = window.setTimeout(() => {
+        confirmationTimerRef.current = null;
+        setShowConfirmation(false);
+      }, 1500);
     },
   });
 

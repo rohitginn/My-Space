@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Plus, Layout, Loader2, Trash2 } from 'lucide-react';
-import { io, Socket } from 'socket.io-client';
+import { Plus, Layout, Loader2, Trash2, RefreshCw } from 'lucide-react';
+import { io } from 'socket.io-client';
 import api from '@/lib/api';
 import { Modal } from './Modal';
+import { CoSpaceContext } from './CoSpaceContext';
+import { useDialog } from './DialogProvider';
 
 type Card = {
   id: string;
   columnId: string;
   title: string;
   description: string | null;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
   sortOrder: number;
 };
 
@@ -33,17 +35,17 @@ type Board = {
 
 export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
   const queryClient = useQueryClient();
+  const { confirm } = useDialog();
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newCardTitle, setNewCardTitle] = useState('');
   const [activeColId, setActiveColId] = useState<string | null>(null);
-
-  const socketRef = useRef<Socket | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch workspace boards
-  const { data: boards = [], isLoading: boardsLoading } = useQuery({
+  const { data: boards = [], isLoading: boardsLoading, isError: boardsError, refetch: refetchBoards } = useQuery({
     queryKey: ['workspace-boards', workspaceId],
     queryFn: async () => {
       const { data } = await api.get(`/kanban/workspaces/${workspaceId}/boards`);
@@ -51,42 +53,37 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
     },
   });
 
-  // Auto-select first board if none selected
-  useEffect(() => {
-    if (boards.length > 0 && !selectedBoardId) {
-      setSelectedBoardId(boards[0].id);
-    }
-  }, [boards, selectedBoardId]);
+  const activeBoardId = selectedBoardId && boards.some((board) => board.id === selectedBoardId)
+    ? selectedBoardId
+    : boards[0]?.id ?? null;
 
   // Fetch selected board details
-  const { data: boardDetail, isLoading: boardLoading } = useQuery({
-    queryKey: ['kanban-board', selectedBoardId],
+  const { data: boardDetail, isLoading: boardLoading, isError: boardError, refetch: refetchBoard } = useQuery({
+    queryKey: ['kanban-board', activeBoardId],
     queryFn: async () => {
-      if (!selectedBoardId) return null;
-      const { data } = await api.get(`/kanban/boards/${selectedBoardId}`);
+      if (!activeBoardId) return null;
+      const { data } = await api.get(`/kanban/boards/${activeBoardId}`);
       return data.data as Board;
     },
-    enabled: !!selectedBoardId,
+    enabled: !!activeBoardId,
   });
 
   // Socket sync for selected board
   useEffect(() => {
-    if (!selectedBoardId) return;
+    if (!activeBoardId) return;
     const token = localStorage.getItem('accessToken');
     const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000', { auth: { token } });
-    socket.emit('kanban:join', selectedBoardId);
+    socket.emit('kanban:board:join', activeBoardId);
 
-    socket.on('kanban:updated', () => {
-      queryClient.invalidateQueries({ queryKey: ['kanban-board', selectedBoardId] });
+    socket.on('kanban:card:moved', () => {
+      queryClient.invalidateQueries({ queryKey: ['kanban-board', activeBoardId] });
     });
 
-    socketRef.current = socket;
     return () => {
-      socket.off('kanban:updated');
+      socket.off('kanban:card:moved');
       socket.disconnect();
-      socketRef.current = null;
     };
-  }, [selectedBoardId, queryClient]);
+  }, [activeBoardId, queryClient]);
 
   // Create board mutation
   const createBoard = useMutation({
@@ -95,24 +92,47 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
       return data.data as Board;
     },
     onSuccess: (newBoard) => {
+      queryClient.setQueryData<Board[]>(['workspace-boards', workspaceId], (currentBoards = []) => [
+        ...currentBoards.filter((board) => board.id !== newBoard.id),
+        newBoard,
+      ]);
       queryClient.invalidateQueries({ queryKey: ['workspace-boards', workspaceId] });
       setSelectedBoardId(newBoard.id);
       setShowCreateModal(false);
       setNewTitle('');
       setNewDesc('');
     },
+    onError: (requestError) => {
+      const response = (requestError as { response?: { data?: { error?: { message?: string } } } }).response;
+      setError(response?.data?.error?.message || 'The board could not be created. Check your connection and try again.');
+    },
   });
 
   // Create card mutation
   const createCard = useMutation({
     mutationFn: async ({ columnId, title }: { columnId: string; title: string }) => {
-      await api.post(`/kanban/columns/${columnId}/cards`, { title });
+      const { data } = await api.post(`/kanban/columns/${columnId}/cards`, { title });
+      return data.data as Card;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kanban-board', selectedBoardId] });
-      socketRef.current?.emit('kanban:update', { boardId: selectedBoardId });
+    onSuccess: (createdCard) => {
+      queryClient.setQueryData<Board>(['kanban-board', activeBoardId], (currentBoard) => {
+        if (!currentBoard?.columns) return currentBoard;
+        return {
+          ...currentBoard,
+          columns: currentBoard.columns.map((column) => (
+            column.id === createdCard.columnId
+              ? { ...column, cards: [...column.cards, createdCard] }
+              : column
+          )),
+        };
+      });
+      queryClient.invalidateQueries({ queryKey: ['kanban-board', activeBoardId] });
       setActiveColId(null);
       setNewCardTitle('');
+    },
+    onError: (requestError) => {
+      const response = (requestError as { response?: { data?: { error?: { message?: string } } } }).response;
+      setError(response?.data?.error?.message || 'The task could not be added. Check your connection and try again.');
     },
   });
 
@@ -122,22 +142,31 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
       await api.delete(`/kanban/cards/${cardId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kanban-board', selectedBoardId] });
-      socketRef.current?.emit('kanban:update', { boardId: selectedBoardId });
+      queryClient.invalidateQueries({ queryKey: ['kanban-board', activeBoardId] });
+    },
+    onError: (requestError) => {
+      const response = (requestError as { response?: { data?: { error?: { message?: string } } } }).response;
+      setError(response?.data?.error?.message || 'The task could not be deleted. Please try again.');
     },
   });
 
+  const removeCard = async (card: Card) => {
+    if (await confirm(`Delete “${card.title}”?`, { title: 'Delete task' })) deleteCard.mutate(card.id);
+  };
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:px-10">
+    <div className="mx-auto min-h-full max-w-7xl px-4 py-8 sm:px-6 md:px-10">
+      <CoSpaceContext workspaceId={workspaceId} current="projects" />
       {/* Header */}
       <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-medium text-accent-blue">Workspace Projects</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Collaborative Kanban</h1>
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">Project boards</h1>
+          <p className="mt-2 max-w-xl text-sm text-muted">Turn shared work into a visible next step for everyone.</p>
         </div>
 
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => { setError(null); setShowCreateModal(true); }}
           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent-blue px-4 py-2 text-sm font-semibold text-white hover:bg-accent-blue-hover shadow-xs transition-all active:scale-95 cursor-pointer"
         >
           <Plus size={17} />
@@ -147,13 +176,15 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
 
       {/* Board Tabs */}
       {boards.length > 0 && (
-        <div className="mb-6 flex items-center gap-2 overflow-x-auto pb-2 border-b border-border">
+        <div role="tablist" aria-label="Project boards" className="mb-6 flex items-center gap-2 overflow-x-auto border-b border-border pb-2">
           {boards.map((b) => (
             <button
               key={b.id}
               onClick={() => setSelectedBoardId(b.id)}
+              role="tab"
+              aria-selected={activeBoardId === b.id}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors whitespace-nowrap cursor-pointer ${
-                selectedBoardId === b.id
+                activeBoardId === b.id
                   ? 'bg-accent-blue text-white shadow-md font-semibold'
                   : 'bg-surface text-muted hover:text-foreground hover:bg-surface-hover'
               }`}
@@ -165,12 +196,27 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
       )}
 
       {/* Board Body */}
-      {boardsLoading || boardLoading ? (
+      {error && !showCreateModal && <p role="alert" className="mb-5 rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-600">{error}</p>}
+      {boardsError ? (
+        <div role="alert" className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
+          <Layout className="mx-auto text-muted" size={36} />
+          <h3 className="mt-4 text-lg font-semibold">Could not load project boards</h3>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">The shared workspace service did not respond. Retry when the API is available.</p>
+          <button onClick={() => refetchBoards()} className="mt-5 inline-flex h-10 items-center gap-2 justify-center rounded-xl border border-border px-4 text-sm font-semibold text-foreground hover:bg-surface-hover cursor-pointer"><RefreshCw size={15} />Retry</button>
+        </div>
+      ) : boardsLoading || boardLoading ? (
         <div className="py-20 text-center text-muted">
           <Loader2 className="mx-auto animate-spin" size={28} />
           <p className="mt-2 text-sm">Loading project board...</p>
         </div>
-      ) : !selectedBoardId || boards.length === 0 ? (
+      ) : boardError ? (
+        <div role="alert" className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
+          <Layout className="mx-auto text-muted" size={36} />
+          <h3 className="mt-4 text-lg font-semibold">Could not open this board</h3>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">Try again, or choose another board from the list.</p>
+          <button onClick={() => refetchBoard()} className="mt-5 inline-flex h-10 items-center gap-2 justify-center rounded-xl border border-border px-4 text-sm font-semibold text-foreground hover:bg-surface-hover cursor-pointer"><RefreshCw size={15} />Retry</button>
+        </div>
+      ) : !activeBoardId || boards.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-12 text-center bg-surface/50">
           <Layout className="mx-auto text-muted mb-4" size={36} />
           <h3 className="text-lg font-semibold">No Workspace Project Boards</h3>
@@ -178,7 +224,7 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
             Create a collaborative board to manage tasks, sprints, and deliverables with your team.
           </p>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => { setError(null); setShowCreateModal(true); }}
             className="mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-accent-blue px-4 py-2 text-sm font-semibold text-white shadow-xs transition-all active:scale-95 cursor-pointer"
           >
             <Plus size={16} />
@@ -205,15 +251,15 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
                   <motion.div
                     key={card.id}
                     layout
-                    initial={{ opacity: 0, y: 5 }}
-                    animate={{ opacity: 1, y: 0 }}
                     className="p-3.5 rounded-xl border border-border bg-background shadow-xs hover:border-accent-blue/40 transition-colors group relative"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-sm font-medium text-foreground">{card.title}</p>
                       <button
-                        onClick={() => deleteCard.mutate(card.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-muted hover:text-red-500 transition-opacity cursor-pointer"
+                        onClick={() => removeCard(card)}
+                        disabled={deleteCard.isPending}
+                        aria-label={`Delete ${card.title}`}
+                        className="p-1 text-muted hover:text-red-500 transition-colors cursor-pointer md:opacity-0 md:group-hover:opacity-100"
                         title="Delete Card"
                       >
                         <Trash2 size={14} />
@@ -229,6 +275,7 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (newCardTitle.trim()) {
+                      setError(null);
                       createCard.mutate({ columnId: col.id, title: newCardTitle.trim() });
                     }
                   }}
@@ -244,7 +291,7 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
                   <div className="flex gap-2">
                     <button
                       type="submit"
-                      disabled={createCard.isPending}
+                      disabled={createCard.isPending || !newCardTitle.trim()}
                       className="inline-flex h-8 items-center justify-center rounded-lg bg-accent-blue px-3 py-1 text-xs font-semibold text-white shadow-xs transition-all active:scale-95 cursor-pointer"
                     >
                       Add Card
@@ -275,11 +322,11 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
       )}
 
       {/* Create Board Modal */}
-      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Create Workspace Board">
+      <Modal isOpen={showCreateModal} onClose={() => { if (!createBoard.isPending) { setShowCreateModal(false); setError(null); } }} title="Create Workspace Board">
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (newTitle.trim()) createBoard.mutate();
+            if (newTitle.trim()) { setError(null); createBoard.mutate(); }
           }}
           className="space-y-4"
         >
@@ -308,6 +355,7 @@ export function CoSpaceKanban({ workspaceId }: { workspaceId: string }) {
               className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-accent-blue min-h-[80px]"
             />
           </div>
+          {error && <p role="alert" className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">{error}</p>}
           <button
             disabled={createBoard.isPending || !newTitle.trim()}
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-accent-blue px-4 text-sm font-semibold text-white shadow-xs disabled:opacity-50 transition-all active:scale-95 cursor-pointer"
