@@ -183,6 +183,9 @@ Run Drizzle schema push or migrations to build the tables in your PostgreSQL dat
 # Push database schema directly to PostgreSQL
 pnpm --filter api db:push
 
+# Repair an existing schema-push database without replaying the baseline migrations
+pnpm --filter api db:repair
+
 # (Optional) Seed initial demo data
 pnpm --filter api db:seed
 ```
