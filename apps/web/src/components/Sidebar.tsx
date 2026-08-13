@@ -3,7 +3,7 @@
 import { ComponentType, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronLeft, ChevronRight, LogOut, Menu, Settings, Users, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LogOut, Menu, PlugZap, Settings, Users, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from './AuthProvider';
 import { useWorkspace } from './WorkspaceProvider';
@@ -18,6 +18,7 @@ const coItems = [
   { name: 'Co-Projects', href: (id: string) => `/co-space/${id}/projects`, icon: ProjectsIcon },
   { name: 'Co-Notes', href: (id: string) => `/co-space/${id}/notes`, icon: NotesIcon },
   { name: 'Members', href: (id: string) => `/co-space/${id}/members`, icon: Users },
+  { name: 'Integrations', href: (id: string) => `/co-space/${id}/integrations`, icon: PlugZap },
   { name: 'Workspace settings', href: (id: string) => `/co-space/${id}/settings`, icon: Settings },
 ];
 
@@ -59,7 +60,7 @@ type StandardIcon = ComponentType<{ size?: number; strokeWidth?: number }>;
 function NavItem({ item, active, collapsed, onNavigate }: { item: { name: string; href: string; icon: CustomIcon | StandardIcon }; active: boolean; collapsed: boolean; onNavigate?: () => void }) {
   const [hovered, setHovered] = useState(false);
   const Icon = item.icon;
-  const isCustom = Icon !== Users && Icon !== Settings;
+  const isCustom = Icon !== Users && Icon !== Settings && Icon !== PlugZap;
   const Custom = Icon as CustomIcon;
   const Standard = Icon as StandardIcon;
   return <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 1, y: 0 }} whileTap={{ scale: 0.98 }} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}><Link href={item.href} onClick={onNavigate} title={collapsed ? item.name : undefined} className={`relative flex min-h-11 items-center gap-3 rounded-xl text-sm transition-colors ${collapsed ? 'mx-auto w-12 justify-center px-0' : 'w-full px-3'} ${active ? 'bg-surface-hover text-accent-blue' : 'text-muted hover:bg-surface-hover hover:text-foreground'}`}>{isCustom ? <Custom isHovered={hovered} isActive={active} /> : <Standard size={18} strokeWidth={1.8} />}{!collapsed && <span className="truncate font-medium">{item.name}</span>}</Link></motion.div>;

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Settings } from 'lucide-react';
+import { PlugZap, Settings } from 'lucide-react';
 import { useWorkspace } from './WorkspaceProvider';
 
 const links = [
@@ -44,6 +44,13 @@ export function CoSpaceContext({ workspaceId, current }: { workspaceId: string; 
             </Link>
           );
         })}
+        <Link
+          href={`/co-space/${workspaceId}/integrations`}
+          aria-label="Open workspace integrations"
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-hover hover:text-foreground ${current === 'integrations' ? 'bg-surface-hover text-accent-blue' : ''}`}
+        >
+          <PlugZap size={16} aria-hidden="true" />
+        </Link>
         <Link
           href={`/co-space/${workspaceId}/settings`}
           aria-label="Open workspace settings"

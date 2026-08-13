@@ -19,3 +19,4 @@ export * from './co-canvases.js';
 export * from './collaboration.js';
 export * from './notifications.js';
 export * from './passwordResetTokens.js';
+export * from './integrations.js';
