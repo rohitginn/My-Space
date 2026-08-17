@@ -16,47 +16,51 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
 
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-serif: var(--font-playfair), "Playfair Display", Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 :root {
-  /* Light Mode - Crisp white/off-white background, Sapphire & Mint accents */
-  --background: #ffffff;
-  --foreground: #0f172a;
+  /* Light Mode - Paper white, graphite, and sea-glass */
+  --background: #f4f7f3;
+  --foreground: #17201d;
+  --canvas-paper: #fbfcfa;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   
-  --surface: #f8fafc;
-  --surface-hover: #f1f5f9;
-  --surface-glass: rgba(255, 255, 255, 0.7);
+  --surface: #ffffff;
+  --surface-hover: #eaf0eb;
+  --surface-glass: rgba(255, 255, 255, 0.92);
   
-  --accent-blue: #0284c7; /* Sapphire */
-  --accent-blue-hover: #0369a1;
+  --accent-blue: #287f74;
+  --accent-blue-hover: #1f6d64;
   
-  --accent-green: #059669; /* Mint/Emerald */
-  --accent-green-hover: #047857;
+  --accent-green: #718d5d;
+  --accent-green-hover: #5c784b;
   
-  --muted: #64748b;
-  --border: #e2e8f0;
+  --muted: #697870;
+  --border: #d9e3dc;
 }
 
 :root[class~="dark"] {
-  /* Dark Mode - Deep charcoal background, Ocean & Emerald accents */
-  --background: #0f111a;
-  --foreground: #f1f5f9;
+  /* Dark Mode - Neutral charcoal, sea-glass accent */
+  --background: #161616;
+  --foreground: #f0f0ed;
+  --canvas-paper: #1a1b1a;
   
-  --surface: #181b26;
-  --surface-hover: #202433;
-  --surface-glass: rgba(24, 27, 38, 0.6);
+  --surface: #1f1f1f;
+  --surface-hover: #2a2a2a;
+  --surface-glass: rgba(31, 31, 31, 0.94);
   
-  --accent-blue: #0ea5e9;
-  --accent-blue-hover: #0284c7;
+  --accent-blue: #3c9a8d;
+  --accent-blue-hover: #2f8579;
   
-  --accent-green: #10b981;
-  --accent-green-hover: #059669;
+  --accent-green: #9ab67f;
+  --accent-green-hover: #819d68;
   
-  --muted: #94a3b8;
-  --border: #2a2f45;
+  --muted: #a5a5a0;
+  --border: #383838;
 }
 
 body {
@@ -70,7 +74,59 @@ body {
 .landing-image-frame {
   width: min(100%, 760px);
   border: 1px solid rgb(240 237 229 / 0.14);
-  box-shadow: 22px 28px 0 rgb(141 153 113 / 0.16);
+}
+
+.landing-mark span {
+  display: block;
+}
+
+.landing-menu-summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-menu-summary::after {
+  content: '+';
+  display: inline-block;
+  margin-left: 0.5rem;
+  color: #aeb89a;
+  transition: transform 180ms var(--ease-out);
+}
+
+.landing-menu-summary:hover::after,
+.landing-menu-summary:focus-visible::after {
+  transform: rotate(45deg);
+}
+
+.landing-arrow {
+  transition: transform 160ms var(--ease-out);
+}
+
+.landing-arrow-link:hover .landing-arrow,
+.landing-arrow-link:focus-visible .landing-arrow {
+  transform: translate3d(2px, -2px, 0);
+}
+
+.landing-process-item,
+.landing-capability,
+.landing-nav-action,
+.landing-cta {
+  transition-property: background-color, border-color, color;
+  transition-duration: 180ms;
+  transition-timing-function: var(--ease-out);
+}
+
+.landing-process-item {
+  position: relative;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-process-item:hover {
+    background-color: rgb(240 237 229 / 0.035);
+  }
+
+  .landing-capability:hover {
+    border-color: rgb(174 184 154 / 0.42);
+  }
 }
 
 @keyframes landing-hero-drift {
@@ -78,16 +134,25 @@ body {
     transform: translate3d(0, 0, 0) rotate(0deg);
   }
   to {
-    transform: translate3d(0, 72px, 0) rotate(-2.5deg);
+    transform: translate3d(0, 22px, 0) rotate(-0.6deg);
   }
 }
 
-@keyframes landing-tools-settle {
+@keyframes landing-tools-image-settle {
   from {
-    transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 12px, 0);
   }
   to {
-    transform: translate3d(-48px, 0, 0);
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+@keyframes landing-collaboration-settle {
+  from {
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    transform: translate3d(0, -6px, 0);
   }
 }
 
@@ -98,10 +163,40 @@ body {
     animation-timeline: scroll(root);
   }
 
-  .landing-tools-motion {
-    animation: landing-tools-settle linear both;
-    animation-range: entry 20% cover 70%;
+  .landing-tools-image {
+    animation: landing-tools-image-settle linear both;
+    animation-range: entry 10% cover 60%;
     animation-timeline: view();
+  }
+
+  .landing-collaboration-image {
+    animation: landing-collaboration-settle linear both;
+    animation-range: entry 8% cover 55%;
+    animation-timeline: view();
+  }
+}
+
+@media (max-width: 767px) {
+  .landing-scroll-image {
+    animation-range: 0% 22%;
+  }
+
+  .landing-tools-image {
+    animation-range: entry 5% cover 45%;
+  }
+
+  .landing-collaboration-image {
+    animation-range: entry 5% cover 40%;
+  }
+}
+
+.landing-cta-arrow {
+  transition: transform 160ms var(--ease-out);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .landing-cta:hover .landing-cta-arrow {
+    transform: translate3d(2px, -2px, 0);
   }
 }
 
@@ -113,18 +208,27 @@ body {
   }
 
   .landing-scroll-image,
-  .landing-tools-motion {
+  .landing-tools-image {
     animation: none;
     transform: none;
+  }
+
+  .landing-collaboration-image {
+    animation: none;
+    transform: none;
+  }
+
+  .landing-cta-arrow,
+  .landing-arrow,
+  .landing-menu-summary::after {
+    transition: none;
   }
 }
 
 /* Glassmorphism Utilities */
 .glass {
   background-color: var(--surface-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
 }
 
 .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
