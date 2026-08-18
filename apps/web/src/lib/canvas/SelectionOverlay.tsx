@@ -9,6 +9,7 @@ import type { AABB } from './types';
 
 interface SelectionOverlayProps {
   shapes: CanvasShape[];
+  zoom?: number;
   onHandlePointerDown: (e: React.PointerEvent, handle: HandlePosition) => void;
 }
 
@@ -38,7 +39,7 @@ const CURSOR_MAP: Record<string, string> = {
   rotation: 'grab',
 };
 
-export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverlayProps) {
+export function SelectionOverlay({ shapes, zoom = 1, onHandlePointerDown }: SelectionOverlayProps) {
   if (shapes.length === 0) return null;
 
   // Compute combined bounding box
@@ -54,7 +55,8 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
   const box: AABB = { minX, minY, maxX, maxY };
   const w = maxX - minX;
   const h = maxY - minY;
-  const half = HANDLE_SIZE / 2;
+  const handleRadius = Math.max(HANDLE_SIZE / 2, 6 / Math.max(0.1, zoom));
+  const rotationOffset = Math.max(ROTATION_HANDLE_OFFSET, 30 / Math.max(0.1, zoom));
   const cx = (minX + maxX) / 2;
 
   const isText = shapes.length === 1 && shapes[0].type === 'text';
@@ -80,7 +82,7 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
           x1={cx}
           y1={minY - 4}
           x2={cx}
-          y2={minY - ROTATION_HANDLE_OFFSET}
+          y2={minY - rotationOffset}
           stroke="#3b82f6"
           strokeWidth={1}
           pointerEvents="none"
@@ -90,8 +92,8 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
         {/* Rotation handle circle */}
         <circle
           cx={cx}
-          cy={minY - ROTATION_HANDLE_OFFSET}
-          r={4}
+          cy={minY - rotationOffset}
+          r={handleRadius * 0.7}
           fill="#ffffff"
           stroke="#3b82f6"
           strokeWidth={1.5}
@@ -161,7 +163,7 @@ export function SelectionOverlay({ shapes, onHandlePointerDown }: SelectionOverl
             key={pos}
             cx={x}
             cy={y}
-            r={4}
+            r={handleRadius}
             fill="#ffffff"
             stroke="#3b82f6"
             strokeWidth={1.5}

@@ -4,8 +4,8 @@
 
 'use client';
 
-import React, { useRef, useCallback, useEffect, useState } from 'react';
-import { Maximize2, Minimize2, ZoomIn, ZoomOut, Compass, Download, Keyboard, Grid3X3, ImagePlus, Plus, Trash2, MoreHorizontal, Copy, Lock, Unlock, ChevronUp, ChevronDown } from 'lucide-react';
+import React, { useRef, useCallback, useEffect, useMemo, useState } from 'react';
+import { Maximize2, Minimize2, ZoomIn, ZoomOut, Compass, LocateFixed, Download, Keyboard, Grid3X3, ImagePlus, Plus, Trash2, MoreHorizontal, Copy, Lock, Unlock, ChevronUp, ChevronDown } from 'lucide-react';
 import type { Point, AABB, CanvasShape, CanvasDocument, PenShape, TextShape, HandlePosition, ToolType } from './types';
 import {
   screenToWorld, worldToScreen, getCameraTransform, zoomAtPoint,
@@ -22,7 +22,7 @@ import { createRegisteredShape } from './shapeRegistry';
 import { htmlToRichText, plainTextToRichText, richTextToHtml, richTextToPlainText } from './richText';
 import type { CanvasEngine } from './useCanvasEngine';
 import type { RemoteCursor, CommentPin } from './types';
-import { MessageSquare, Check, X } from 'lucide-react';
+import { Check, X } from 'lucide-react';
 
 interface InfiniteCanvasProps {
   engine: CanvasEngine;
@@ -30,8 +30,143 @@ interface InfiniteCanvasProps {
   onPointerMoveWorld?: (point: Point) => void;
   remoteCursors?: Record<string, RemoteCursor>;
   comments?: CommentPin[];
+  commentAuthor?: { name: string; avatarUrl?: string | null };
   onAddComment?: (point: Point, content: string) => void;
   onToggleResolveComment?: (commentId: string) => void;
+}
+
+function initialsFor(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('') || 'ME';
+}
+
+function CommentAvatar({ name, avatarUrl, size = 'sm' }: { name: string; avatarUrl?: string | null; size?: 'sm' | 'md' }) {
+  const sizeClass = size === 'md' ? 'h-8 w-8 text-[11px]' : 'h-6 w-6 text-[9px]';
+  return (
+    <span className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-blue/15 font-semibold text-accent-blue ${sizeClass}`}>
+      {avatarUrl ? <img src={avatarUrl} alt="" className="h-full w-full object-cover" /> : initialsFor(name)}
+    </span>
+  );
+}
+
+function isTextEntryTarget(target: EventTarget | null) {
+  const element = target instanceof HTMLElement ? target : null;
+  return !!element && (element.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName));
+}
+
+const MINIMAP_WIDTH = 190;
+const MINIMAP_HEIGHT = 118;
+
+function CanvasMiniMap({
+  shapes,
+  viewport,
+  onNavigate,
+}: {
+  shapes: CanvasShape[];
+  viewport: AABB;
+  onNavigate: (point: Point) => void;
+}) {
+  const contentBounds = getSelectionBounds(shapes);
+  if (!contentBounds) return null;
+
+  const rawWidth = contentBounds.maxX - contentBounds.minX;
+  const rawHeight = contentBounds.maxY - contentBounds.minY;
+  const padding = Math.max(24, Math.min(Math.max(rawWidth, rawHeight) * 0.12, 240));
+  const viewBox = {
+    minX: contentBounds.minX - padding,
+    minY: contentBounds.minY - padding,
+    width: Math.max(1, rawWidth + padding * 2),
+    height: Math.max(1, rawHeight + padding * 2),
+  };
+  const viewMaxX = viewBox.minX + viewBox.width;
+  const viewMaxY = viewBox.minY + viewBox.height;
+  const viewportIntersectsMap = aabbOverlap(viewport, {
+    minX: viewBox.minX,
+    minY: viewBox.minY,
+    maxX: viewMaxX,
+    maxY: viewMaxY,
+  });
+  const viewportCenter = {
+    x: Math.min(viewMaxX - 6, Math.max(viewBox.minX + 6, (viewport.minX + viewport.maxX) / 2)),
+    y: Math.min(viewMaxY - 6, Math.max(viewBox.minY + 6, (viewport.minY + viewport.maxY) / 2)),
+  };
+
+  const handlePointerDown = (event: React.PointerEvent<SVGSVGElement>) => {
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    onNavigate({
+      x: viewBox.minX + ((event.clientX - rect.left) / rect.width) * viewBox.width,
+      y: viewBox.minY + ((event.clientY - rect.top) / rect.height) * viewBox.height,
+    });
+  };
+
+  return (
+    <div className="absolute bottom-20 right-4 z-30 w-[190px] rounded-xl border border-border/70 bg-surface/90 p-2 shadow-lg backdrop-blur-xl pointer-events-auto">
+      <div className="mb-1.5 flex items-center justify-between px-1 text-[10px] font-semibold text-muted">
+        <span>Canvas map</span>
+        <span className="text-accent-blue">you are here</span>
+      </div>
+      <svg
+        viewBox={`${viewBox.minX} ${viewBox.minY} ${viewBox.width} ${viewBox.height}`}
+        width={MINIMAP_WIDTH - 16}
+        height={MINIMAP_HEIGHT - 30}
+        className="block h-auto w-full cursor-crosshair rounded-md bg-background/70"
+        role="img"
+        aria-label="Canvas map. Click to move the viewport."
+        onPointerDown={handlePointerDown}
+        style={{ touchAction: 'none' }}
+      >
+        <rect x={viewBox.minX} y={viewBox.minY} width={viewBox.width} height={viewBox.height} fill="transparent" />
+        {shapes.map((shape) => {
+          const bounds = getShapeBounds(shape);
+          const hasFill = shape.fillStyle !== 'none' && shape.fill !== 'transparent' && shape.fill !== 'none';
+          return (
+            <rect
+              key={shape.id}
+              x={bounds.minX}
+              y={bounds.minY}
+              width={Math.max(2, bounds.maxX - bounds.minX)}
+              height={Math.max(2, bounds.maxY - bounds.minY)}
+              fill={hasFill ? shape.fill : 'none'}
+              fillOpacity={hasFill ? 0.45 : 0}
+              stroke={shape.color}
+              strokeWidth={1.25}
+              vectorEffect="non-scaling-stroke"
+              opacity={0.85}
+            />
+          );
+        })}
+        <rect
+          x={viewport.minX}
+          y={viewport.minY}
+          width={Math.max(1, viewport.maxX - viewport.minX)}
+          height={Math.max(1, viewport.maxY - viewport.minY)}
+          fill="var(--accent-blue)"
+          fillOpacity={0.08}
+          stroke="var(--accent-blue)"
+          strokeWidth={2}
+          strokeDasharray="6 4"
+          vectorEffect="non-scaling-stroke"
+        />
+        {!viewportIntersectsMap && (
+          <circle
+            cx={viewportCenter.x}
+            cy={viewportCenter.y}
+            r={5}
+            fill="var(--accent-blue)"
+            stroke="var(--surface)"
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+          />
+        )}
+      </svg>
+    </div>
+  );
 }
 
 function resizeShapePatch(shape: CanvasShape, x: number, y: number, width: number, height: number): Partial<CanvasShape> {
@@ -59,6 +194,7 @@ export function InfiniteCanvas({
   onPointerMoveWorld,
   remoteCursors,
   comments,
+  commentAuthor,
   onAddComment,
   onToggleResolveComment,
 }: InfiniteCanvasProps) {
@@ -413,6 +549,11 @@ export function InfiniteCanvas({
   // ── Keyboard shortcuts ─────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Let inputs, textareas, selects, and contenteditable surfaces own their
+      // keystrokes. In particular, Space must not start canvas panning while a
+      // comment is being written.
+      if (isTextEntryTarget(e.target)) return;
+
       // Delete selected
       if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedIds.length > 0 && !editingTextId) {
         engine.pushHistory();
@@ -645,7 +786,7 @@ export function InfiniteCanvas({
       }
 
       // Drawing tools (pen, rect, ellipse, line, arrow, and new shapes)
-      if (['pen', 'highlighter', 'rectangle', 'ellipse', 'line', 'arrow', 'diamond', 'triangle', 'star', 'hexagon', 'octagon', 'cloud', 'parallelogram', 'trapezoid', 'cylinder', 'callout', 'frame', 'video', 'bookmark', 'embed'].includes(tool)) {
+      if (['pen', 'highlighter', 'rectangle', 'ellipse', 'line', 'arrow', 'diamond', 'triangle', 'star', 'hexagon', 'octagon', 'cloud', 'parallelogram', 'trapezoid', 'cylinder', 'callout', 'frame', 'sticky-note', 'video', 'bookmark', 'embed'].includes(tool)) {
         engine.pushHistory();
         actions.setDrawing(true);
         const shape = createShape(tool as CanvasShape['type'], worldPt);
@@ -1050,13 +1191,16 @@ export function InfiniteCanvas({
         }
 
         // Remove zero-size shapes (accidental clicks)
-        const isAccidentalClick = shape && tool !== 'pen' && Math.abs(shape.width) < 2 && Math.abs(shape.height) < 2;
+        const staysInDrawingMode = tool === 'pen' || tool === 'highlighter';
+        const isAccidentalClick = shape && !staysInDrawingMode && Math.abs(shape.width) < 2 && Math.abs(shape.height) < 2;
         if (isAccidentalClick) {
           actions.deleteShapes([shapeId]);
-        } else if (shape) {
-          // Drawing is one-shot: leave the new shape selected and return to the pointer tool.
-          actions.setSelected([shapeId]);
           actions.setTool('select');
+        } else if (shape) {
+          // Geometric tools are one-shot. Pen and Highlighter stay active for
+          // continuous strokes until the user explicitly selects another tool.
+          actions.setSelected([shapeId]);
+          if (!staysInDrawingMode) actions.setTool('select');
           if (tool === 'bookmark' || tool === 'embed') {
             setUrlEditor({ shapeId, type: tool });
             setUrlDraft('');
@@ -1241,9 +1385,21 @@ export function InfiniteCanvas({
   const sortedShapes = Object.values(state.shapes).sort((a, b) => a.zIndex - b.zIndex);
   const viewportBounds = getViewportBounds(state.camera, getRect());
   const visibleShapes = sortedShapes.filter((shape) => aabbOverlap(getShapeBounds(shape), viewportBounds));
+  const contentBounds = useMemo(() => getSelectionBounds(Object.values(state.shapes)), [state.shapes]);
+  const contentIsOutsideViewport = !!contentBounds && !aabbOverlap(contentBounds, viewportBounds);
   const selectedShapes = state.selectedIds.map((id) => state.shapes[id]).filter(Boolean);
   const currentPage = state.pages.find((page) => page.id === state.currentPageId);
   const currentPagePosition = state.pages.findIndex((page) => page.id === state.currentPageId);
+
+  const navigateToMinimapPoint = useCallback((point: Point) => {
+    const rect = getRect();
+    if (!rect.width || !rect.height) return;
+    actions.setCamera({
+      ...state.camera,
+      x: rect.width / 2 - point.x * state.camera.zoom,
+      y: rect.height / 2 - point.y * state.camera.zoom,
+    });
+  }, [actions, getRect, state.camera]);
 
   useEffect(() => {
     setPageNameDraft(currentPage?.name ?? '');
@@ -1571,10 +1727,11 @@ export function InfiniteCanvas({
 
           {/* Selection overlay */}
           {selectedShapes.length > 0 && state.activeTool === 'select' && !state.isDrawing && (
-            <SelectionOverlay
-              shapes={selectedShapes}
-              onHandlePointerDown={handleResizePointerDown}
-            />
+          <SelectionOverlay
+            shapes={selectedShapes}
+            zoom={state.camera.zoom}
+            onHandlePointerDown={handleResizePointerDown}
+          />
           )}
 
           {/* Remote Cursors Overlay */}
@@ -1642,11 +1799,14 @@ export function InfiniteCanvas({
         const screenPt = worldToScreen(comment.x, comment.y, state.camera);
         return (
           <div
-            style={{ left: screenPt.x + 18, top: screenPt.y - 20 }}
-            className="absolute z-40 w-64 rounded-2xl border border-border bg-surface/95 backdrop-blur p-3.5 shadow-2xl space-y-2 pointer-events-auto"
+            style={{ left: `clamp(8px, ${screenPt.x + 18}px, calc(100% - 272px))`, top: `clamp(8px, ${screenPt.y - 20}px, calc(100% - 180px))` }}
+            className="absolute z-40 w-64 max-w-[calc(100%_-_16px)] rounded-2xl border border-border bg-surface/95 backdrop-blur p-3.5 shadow-2xl space-y-2 pointer-events-auto"
           >
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-foreground">{comment.userName}</span>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <CommentAvatar name={comment.userName} avatarUrl={comment.avatarUrl} />
+                <span className="truncate text-xs font-semibold text-foreground">{comment.userName}</span>
+              </div>
               <button
                 onClick={() => setActiveCommentId(null)}
                 className="p-1 text-muted hover:text-foreground"
@@ -1684,13 +1844,23 @@ export function InfiniteCanvas({
                 setNewCommentText('');
               }
             }}
-            style={{ left: screenPt.x + 18, top: screenPt.y - 20 }}
-            className="absolute z-40 w-64 rounded-2xl border border-border bg-surface p-3 shadow-2xl space-y-2 pointer-events-auto"
+            style={{ left: `clamp(8px, ${screenPt.x + 18}px, calc(100% - 272px))`, top: `clamp(8px, ${screenPt.y - 20}px, calc(100% - 180px))` }}
+            className="absolute z-40 w-64 max-w-[calc(100%_-_16px)] rounded-2xl border border-border bg-surface p-3 shadow-2xl space-y-2 pointer-events-auto"
           >
+            {commentAuthor && (
+              <div className="flex items-center gap-2 border-b border-border/60 pb-2">
+                <CommentAvatar name={commentAuthor.name} avatarUrl={commentAuthor.avatarUrl} />
+                <div className="min-w-0">
+                  <p className="text-[10px] text-muted">Commenting as</p>
+                  <p className="truncate text-xs font-semibold text-foreground">{commentAuthor.name}</p>
+                </div>
+              </div>
+            )}
             <textarea
               autoFocus
               value={newCommentText}
               onChange={(e) => setNewCommentText(e.target.value)}
+              onKeyDown={(e) => e.stopPropagation()}
               placeholder="Leave a comment pin..."
               className="w-full rounded-xl border border-border bg-background p-2.5 text-xs text-foreground outline-none focus:border-accent-blue min-h-[60px]"
             />
@@ -1897,6 +2067,14 @@ export function InfiniteCanvas({
         }}
       />
 
+      {contentBounds && (
+        <CanvasMiniMap
+          shapes={sortedShapes}
+          viewport={viewportBounds}
+          onNavigate={navigateToMinimapPoint}
+        />
+      )}
+
       {/* Canvas Utilities & Controls Panel */}
       <div className="absolute top-4 right-4 z-30 flex items-center gap-1 bg-surface/85 backdrop-blur-xl border border-border/50 rounded-xl p-1 shadow-lg pointer-events-auto">
         {/* Zoom Out */}
@@ -1932,10 +2110,23 @@ export function InfiniteCanvas({
         <button
           onClick={fitToScreen}
           className="p-1.5 text-muted hover:text-foreground hover:bg-surface-hover rounded-lg transition-colors"
-          title="Fit to Screen"
+          title="Fit all content to screen"
+          aria-label="Fit all content to screen"
         >
           <Compass size={15} />
         </button>
+
+        {contentIsOutsideViewport && (
+          <button
+            onClick={fitToScreen}
+            className="flex items-center gap-1 rounded-lg bg-accent-blue/10 px-2 py-1.5 text-accent-blue transition-colors hover:bg-accent-blue/20"
+            title="Find content"
+            aria-label="Find content"
+          >
+            <LocateFixed size={15} />
+            <span className="hidden text-[10px] font-semibold sm:inline">Find content</span>
+          </button>
+        )}
 
         <button
           onClick={() => actions.setPreferences({ showGrid: !state.preferences.showGrid })}

@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from 'react';
 import { CanvasEditor } from './editor';
-import type { CanvasDocument, CanvasShape, HandlePosition, ToolStyle, ToolType } from './types';
+import type { CanvasDocument, CanvasShape, CommentPin, HandlePosition, ToolStyle, ToolType } from './types';
 
 /**
  * React adapter for the framework-agnostic editor. Components consume a
@@ -19,6 +19,7 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
     setCamera: editor.setCamera,
     setTool: editor.setTool,
     setToolStyle: editor.setToolStyle,
+    setComments: editor.setComments,
     addShape: editor.addShape,
     createAsset: editor.createAsset,
     deleteAsset: editor.deleteAsset,
@@ -75,6 +76,6 @@ export function useCanvasEngine(initialDoc?: CanvasDocument) {
 
 export type CanvasEngine = ReturnType<typeof useCanvasEngine>;
 export type CanvasEngineState = CanvasEngine['state'];
-export type CanvasEngineActions = Pick<CanvasEngine, 'setCamera' | 'setTool' | 'setToolStyle' | 'addShape' | 'updateShape' | 'deleteShapes' | 'setSelected'>;
+export type CanvasEngineActions = Pick<CanvasEngine, 'setCamera' | 'setTool' | 'setToolStyle' | 'setComments' | 'addShape' | 'updateShape' | 'deleteShapes' | 'setSelected'>;
 
-export type { CanvasDocument, CanvasShape, ToolStyle, ToolType };
+export type { CanvasDocument, CanvasShape, CommentPin, ToolStyle, ToolType };

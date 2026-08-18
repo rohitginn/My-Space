@@ -2,6 +2,7 @@ import type { Server, Socket } from 'socket.io';
 
 import { AppError } from '../utils/AppError.js';
 import { notifyWorkspaceMention } from '../modules/notifications/notifications.service.js';
+import { createComment, resolveComment } from '../modules/co-canvas/co-canvas.service.js';
 import {
   applyResourceUpdate,
   authorizeResource,
@@ -34,7 +35,7 @@ function roomFor(resource: CollaborationResource) {
   return `collab:${resource.resourceType}:${resource.workspaceId}:${resource.resourceId}`;
 }
 
-const presenceByRoom = new Map<string, Map<string, { socketId: string; userId: string; userName: string; userColor: string }>>();
+const presenceByRoom = new Map<string, Map<string, { socketId: string; userId: string; userName: string; userColor: string; avatarUrl: string | null }>>();
 
 function publishPresence(io: Server, room: string) {
   const users = Array.from(presenceByRoom.get(room)?.values() ?? []);
@@ -65,7 +66,7 @@ export function registerCollaborationSocket(io: Server, socket: Socket) {
       socket.join(room);
       joined.set(getResourceKey(resource), resource);
       const presence = presenceByRoom.get(room) ?? new Map();
-      presence.set(socket.id, { socketId: socket.id, userId: socket.data.userId, userName: socket.data.displayName ?? 'Collaborator', userColor: socket.data.userColor ?? '#3b82f6' });
+      presence.set(socket.id, { socketId: socket.id, userId: socket.data.userId, userName: socket.data.displayName ?? 'Collaborator', userColor: socket.data.userColor ?? '#3b82f6', avatarUrl: socket.data.avatarUrl ?? null });
       presenceByRoom.set(room, presence);
       publishPresence(io, room);
       socket.emit('collab:sync', { ...resource, update: state.state, revision: state.revision });
@@ -128,14 +129,14 @@ export function registerCollaborationSocket(io: Server, socket: Socket) {
     const resource: CollaborationResource = { workspaceId: input.workspaceId, resourceId: input.resourceId, resourceType: input.resourceType };
     try {
       await authorizeResource(socket.data.userId, resource, true);
-      io.to(roomFor(resource)).emit('collab:comment', {
-        ...input.comment,
-        userId: socket.data.userId,
-        userName: socket.data.displayName ?? 'Collaborator',
-      });
-      if (resource.resourceType === 'canvas' && typeof input.comment.content === 'string') {
-        void notifyWorkspaceMention({ workspaceId: resource.workspaceId, actorId: socket.data.userId, content: input.comment.content, canvasId: resource.resourceId, commentId: typeof input.comment.id === 'string' ? input.comment.id : undefined });
-      }
+      if (resource.resourceType !== 'canvas') return;
+      const x = input.comment.x;
+      const y = input.comment.y;
+      const content = input.comment.content;
+      if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y) || typeof content !== 'string' || !content.trim()) return;
+      const saved = await createComment(socket.data.userId, resource.workspaceId, resource.resourceId, { x, y, content: content.trim() });
+      io.to(roomFor(resource)).emit('collab:comment', saved);
+      void notifyWorkspaceMention({ workspaceId: resource.workspaceId, actorId: socket.data.userId, content: saved.content, canvasId: resource.resourceId, commentId: saved.id });
     } catch {
       socket.emit('collab:error', { ...resource, code: 'COLLABORATION_COMMENT_REJECTED' });
     }
@@ -143,12 +144,14 @@ export function registerCollaborationSocket(io: Server, socket: Socket) {
 
   socket.on('collab:comment-resolve', async (payload: unknown) => {
     if (!payload || typeof payload !== 'object') return;
-    const input = payload as ResourcePayload & { commentId?: string };
+    const input = payload as ResourcePayload & { commentId?: string; isResolved?: boolean };
     if (!isResourcePayload(input) || typeof input.commentId !== 'string' || !joined.has(getResourceKey(input))) return;
     const resource: CollaborationResource = { workspaceId: input.workspaceId, resourceId: input.resourceId, resourceType: input.resourceType };
     try {
       await authorizeForEvent(socket.data.userId, resource);
-      io.to(roomFor(resource)).emit('collab:comment-resolve', { ...resource, commentId: input.commentId, userId: socket.data.userId });
+      if (resource.resourceType !== 'canvas' || typeof input.isResolved !== 'boolean') return;
+      const updated = await resolveComment(socket.data.userId, resource.workspaceId, resource.resourceId, input.commentId, input.isResolved);
+      io.to(roomFor(resource)).emit('collab:comment-resolve', updated);
     } catch {
       socket.emit('collab:error', { ...resource, code: 'COLLABORATION_COMMENT_REJECTED' });
     }

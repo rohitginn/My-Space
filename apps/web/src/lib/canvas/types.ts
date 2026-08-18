@@ -281,14 +281,16 @@ export interface RoomUser {
   userId: string;
   userName: string;
   userColor: string;
+  avatarUrl?: string | null;
 }
 
 export interface CommentPin {
   id: string;
   canvasId: string;
-  workspaceId: string;
+  workspaceId?: string;
   userId: string;
   userName: string;
+  avatarUrl?: string | null;
   x: number;
   y: number;
   content: string;
@@ -305,6 +307,7 @@ export interface CanvasDocument {
   bindings?: Record<string, BindingRecord>;
   settings?: DocumentSettings;
   metadata?: DocumentMetadata;
+  comments?: CommentPin[];
   shapes: Record<string, CanvasShape>;
   camera: Camera;
 }

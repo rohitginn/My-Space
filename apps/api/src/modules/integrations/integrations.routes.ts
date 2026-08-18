@@ -10,5 +10,6 @@ export const integrationsRoutes = Router();
 integrationsRoutes.get('/oauth/:provider/callback', validate({ query: callbackQuerySchema }), controller.callback);
 integrationsRoutes.use(authenticate);
 integrationsRoutes.get('/workspaces/:workspaceId', validate({ params: workspaceIntegrationParamsSchema }), controller.getWorkspaceIntegrations);
+integrationsRoutes.get('/workspaces/:workspaceId/:provider/preview', validate({ params: providerParamsSchema }), controller.getPreview);
 integrationsRoutes.post('/workspaces/:workspaceId/:provider/authorize', validate({ params: providerParamsSchema }), controller.authorize);
 integrationsRoutes.delete('/workspaces/:workspaceId/:provider', validate({ params: providerParamsSchema }), controller.disconnect);

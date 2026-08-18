@@ -74,6 +74,7 @@ export function normalizeDocument(input?: Partial<CanvasDocument> | null): Canva
     bindings: clone(input?.bindings ?? {}),
     settings: { ...DEFAULT_SETTINGS, ...(input?.settings ?? {}) },
     metadata: clone(input?.metadata ?? {}),
+    comments: clone(input?.comments ?? []),
     camera: { ...DEFAULT_CAMERA, ...(input?.camera ?? {}) },
   };
 }

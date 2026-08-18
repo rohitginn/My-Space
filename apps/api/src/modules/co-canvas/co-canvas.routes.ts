@@ -2,7 +2,7 @@ import { Router } from 'express';
 
 import { validate } from '../../middleware/validate.js';
 import * as controller from './co-canvas.controller.js';
-import { canvasParamsSchema, createCanvasSchema, updateCanvasSchema, workspaceParamsSchema } from './co-canvas.validators.js';
+import { canvasParamsSchema, commentParamsSchema, createCanvasSchema, createCommentSchema, resolveCommentSchema, updateCanvasSchema, workspaceParamsSchema } from './co-canvas.validators.js';
 
 export const coCanvasRoutes = Router();
 coCanvasRoutes.get('/workspaces/:workspaceId/canvases', validate({ params: workspaceParamsSchema }), controller.listCanvases);
@@ -10,3 +10,6 @@ coCanvasRoutes.post('/workspaces/:workspaceId/canvases', validate({ params: work
 coCanvasRoutes.get('/workspaces/:workspaceId/canvases/:canvasId', validate({ params: canvasParamsSchema }), controller.getCanvas);
 coCanvasRoutes.patch('/workspaces/:workspaceId/canvases/:canvasId', validate({ params: canvasParamsSchema, body: updateCanvasSchema }), controller.updateCanvas);
 coCanvasRoutes.delete('/workspaces/:workspaceId/canvases/:canvasId', validate({ params: canvasParamsSchema }), controller.deleteCanvas);
+coCanvasRoutes.get('/workspaces/:workspaceId/canvases/:canvasId/comments', validate({ params: canvasParamsSchema }), controller.listComments);
+coCanvasRoutes.post('/workspaces/:workspaceId/canvases/:canvasId/comments', validate({ params: canvasParamsSchema, body: createCommentSchema }), controller.createComment);
+coCanvasRoutes.patch('/workspaces/:workspaceId/canvases/:canvasId/comments/:commentId', validate({ params: commentParamsSchema, body: resolveCommentSchema }), controller.resolveComment);

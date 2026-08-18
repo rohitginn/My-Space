@@ -10,6 +10,7 @@ interface User {
   firstName: string;
   lastName: string;
   displayName: string;
+  avatarUrl?: string | null;
   xp: number;
   level: number;
   currentStreak: number;

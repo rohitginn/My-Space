@@ -30,4 +30,22 @@ describe('canvas document migrations', () => {
     expect(serialized.assets).toEqual({});
     expect(serialized.bindings).toEqual({});
   });
+
+  it('preserves comments in normalized snapshots', () => {
+    const comments = [{
+      id: 'comment-1',
+      canvasId: 'canvas-1',
+      userId: 'user-1',
+      userName: 'Ada',
+      avatarUrl: null,
+      x: 120,
+      y: 80,
+      content: 'Review this area',
+      isResolved: false,
+      createdAt: '2026-08-17T00:00:00.000Z',
+    }];
+    const serialized = serializeDocument(normalizeDocument({ comments }));
+
+    expect(serialized.comments).toEqual(comments);
+  });
 });

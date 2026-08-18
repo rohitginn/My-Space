@@ -12,6 +12,7 @@ import type {
   Camera,
   CanvasDocument,
   CanvasShape,
+  CommentPin,
   EditorSessionState,
   HandlePosition,
   Point,
@@ -227,6 +228,11 @@ export class CanvasEditor {
 
   setToolStyle = (style: Partial<ToolStyle>) => {
     this.toolStyle = { ...this.toolStyle, ...style };
+    this.emit();
+  };
+
+  setComments = (comments: CommentPin[]) => {
+    this.document.comments = clone(comments);
     this.emit();
   };
 

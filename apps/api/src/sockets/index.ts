@@ -35,6 +35,7 @@ export function initSockets(httpServer: HttpServer) {
         return;
       }
       socket.data.displayName = user?.displayName ?? payload.email;
+      socket.data.avatarUrl = user?.avatarUrl ?? null;
       const colors = ['#0f766e', '#2563eb', '#b45309', '#be123c', '#6d28d9', '#047857'];
       socket.data.userColor = colors[Array.from(payload.sub).reduce((sum, char) => sum + char.charCodeAt(0), 0) % colors.length];
       next();

@@ -12,6 +12,7 @@ import { motion } from 'framer-motion';
 import * as Y from 'yjs';
 import { io, Socket } from 'socket.io-client';
 import api from '@/lib/api';
+import { useAuth } from './AuthProvider';
 import { InfiniteCanvas, useCanvasEngine } from '@/lib/canvas';
 import type { CanvasDocument, CommentPin, RoomUser } from '@/lib/canvas';
 import { clearLocalDocumentUpdate, enqueueLocalDocumentUpdate, loadLocalDocument, saveLocalDocument, takeLocalDocumentUpdate } from '@/lib/canvas';
@@ -62,12 +63,25 @@ function decodeYjsUpdate(update: string) {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
+function mergeComments(current: CommentPin[], incoming: CommentPin[]) {
+  const byId = new Map(current.map((comment) => [comment.id, comment]));
+  incoming.forEach((comment) => byId.set(comment.id, comment));
+  return Array.from(byId.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+function commentsFromDocument(documentData: unknown): CommentPin[] {
+  if (!documentData || typeof documentData !== 'object') return [];
+  const comments = (documentData as { comments?: unknown }).comments;
+  return Array.isArray(comments) ? comments as CommentPin[] : [];
+}
+
 function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: DrawingDetail; workspaceId?: string }) {
   const router = useRouter();
+  const { user } = useAuth();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [activeUsers, setActiveUsers] = useState<RoomUser[]>([]);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { userId: string; x: number; y: number; name: string; color: string }>>({});
-  const [comments, setComments] = useState<CommentPin[]>([]);
+  const [comments, setComments] = useState<CommentPin[]>(() => workspaceId ? [] : commentsFromDocument(drawing.documentData));
   const socketRef = useRef<Socket | null>(null);
   const lastCursorEmitAtRef = useRef(0);
   const pendingLocalDocumentRef = useRef(false);
@@ -79,17 +93,16 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
   const localPersistenceKey = `canvas:${id}`;
 
   // Fetch persistent canvas comments from database
-  useQuery({
+  const commentsQuery = useQuery({
     queryKey: ['co-canvas-comments', workspaceId, id],
     queryFn: async () => {
-      if (!workspaceId) return [];
+      if (!workspaceId) return [] as CommentPin[];
       const { data } = await api.get(`/workspaces/${workspaceId}/canvases/${id}/comments`);
-      const fetched = (data.data || []) as CommentPin[];
-      setComments(fetched);
-      return fetched;
+      return (data.data || []) as CommentPin[];
     },
     enabled: !!workspaceId,
   });
+  const visibleComments = workspaceId ? mergeComments(commentsQuery.data ?? [], comments) : comments;
   // Initialize the custom canvas engine with loaded data
   const engine = useCanvasEngine(drawing.documentData as CanvasDocument | undefined);
   const { loadDocument } = engine;
@@ -98,9 +111,12 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
     const saved = drawing.documentData as CanvasDocument | undefined;
     if (saved && Object.keys(saved.shapes ?? {}).length > 0) return;
     void loadLocalDocument(`canvas:${id}`).then((local) => {
-      if (local) loadDocument(local);
+      if (local) {
+        loadDocument(local);
+        if (!workspaceId) setComments(local.comments ?? []);
+      }
     }).catch(() => undefined);
-  }, [drawing.documentData, id, loadDocument]);
+  }, [drawing.documentData, id, loadDocument, workspaceId]);
 
   const saveMutation = useMutation({
     mutationFn: async (documentData: CanvasDocument) => {
@@ -193,12 +209,13 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
     socket.on('collab:presence', (users: RoomUser[]) => setActiveUsers(users));
     socket.on('collab:comment', (comment: CommentPin) => {
       setComments((prev) => {
-        if (prev.some((c) => c.id === comment.id)) return prev;
-        return [...prev, comment];
+        const existing = prev.findIndex((current) => current.id === comment.id);
+        if (existing === -1) return [...prev, comment].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        return prev.map((current, index) => index === existing ? { ...current, ...comment } : current);
       });
     });
-    socket.on('collab:comment-resolve', ({ commentId }: { commentId: string }) => {
-      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
+    socket.on('collab:comment-resolve', (comment: CommentPin) => {
+      setComments((prev) => prev.map((current) => current.id === comment.id ? { ...current, ...comment } : current));
     });
 
     const join = () => socket.emit('collab:join', { workspaceId, resourceType: 'canvas', resourceId: id });
@@ -253,29 +270,41 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
   }, [workspaceId, id]);
 
   const handleAddComment = useCallback((pt: { x: number; y: number }, content: string) => {
-    if (!workspaceId || !socketRef.current) return;
-    const newComment = {
-      id: String(Date.now()),
+    if (workspaceId) {
+      socketRef.current?.emit('collab:comment', { workspaceId, resourceType: 'canvas', resourceId: id, comment: { x: pt.x, y: pt.y, content } });
+      return;
+    }
+
+    const newComment: CommentPin = {
+      id: crypto.randomUUID(),
       canvasId: id,
-      workspaceId,
-      userId: 'pending',
-      userName: 'Collaborator',
+      userId: user?.id ?? 'me',
+      userName: user?.displayName ?? 'You',
+      avatarUrl: user?.avatarUrl ?? null,
       x: pt.x,
       y: pt.y,
       content,
       isResolved: false,
       createdAt: new Date().toISOString(),
     };
-    setComments((prev) => [...prev, newComment]);
-    socketRef.current.emit('collab:comment', { workspaceId, resourceType: 'canvas', resourceId: id, comment: newComment });
-  }, [workspaceId, id]);
+    const nextComments = [...comments, newComment];
+    engine.setComments(nextComments);
+    setComments(nextComments);
+    handleChanged();
+  }, [comments, engine, handleChanged, id, user, workspaceId]);
 
   const handleToggleResolveComment = useCallback((commentId: string) => {
-    setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
-    if (workspaceId && socketRef.current) {
-      socketRef.current.emit('collab:comment-resolve', { workspaceId, resourceType: 'canvas', resourceId: id, commentId });
+    const comment = visibleComments.find((current) => current.id === commentId);
+    if (!comment) return;
+    if (!workspaceId) {
+      const nextComments = comments.map((current) => current.id === commentId ? { ...current, isResolved: !current.isResolved } : current);
+      engine.setComments(nextComments);
+      setComments(nextComments);
+      handleChanged();
+      return;
     }
-  }, [workspaceId, id]);
+    socketRef.current?.emit('collab:comment-resolve', { workspaceId, resourceType: 'canvas', resourceId: id, commentId, isResolved: !comment.isResolved });
+  }, [comments, engine, handleChanged, id, visibleComments, workspaceId]);
 
   return (
     <div className="w-full h-screen flex flex-col relative bg-background overflow-hidden">
@@ -359,7 +388,8 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
           onChanged={handleChanged}
           onPointerMoveWorld={handlePointerMoveWorld}
           remoteCursors={remoteCursors}
-          comments={comments}
+          comments={visibleComments}
+          commentAuthor={{ name: user?.displayName ?? 'You', avatarUrl: user?.avatarUrl ?? null }}
           onAddComment={handleAddComment}
           onToggleResolveComment={handleToggleResolveComment}
         />
