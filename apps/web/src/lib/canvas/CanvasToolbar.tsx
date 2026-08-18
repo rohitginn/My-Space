@@ -122,7 +122,7 @@ export function CanvasToolbar({
     >
       {/* Main floating tool bar */}
       <motion.div
-        initial={{ y: 20 }}
+        initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 200, damping: 20 }}
         className="flex max-w-full items-center gap-1 overflow-x-auto bg-surface/90 backdrop-blur-xl border border-border/60 rounded-2xl px-2 py-1.5 shadow-2xl pointer-events-auto"

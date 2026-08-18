@@ -44,6 +44,7 @@ export function FocusIcon({ isHovered, isActive }: IconProps) {
         cx="12"
         cy="12"
         r="9"
+        initial={{ opacity: 1 }}
         animate={isHovered ? { scale: [1, 1.08, 1], opacity: [1, 0.7, 1] } : { scale: 1, opacity: 1 }}
         transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
       />
@@ -322,4 +323,3 @@ export function InboxIcon({ isHovered, isActive }: IconProps) {
     </svg>
   );
 }
-

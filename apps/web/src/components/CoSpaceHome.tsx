@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowUpRight, Check, Copy, FileText, Layout, Loader2, Palette, Plus, Share2, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import api from '@/lib/api';
+import { normalizeInviteCode } from '@/lib/workspaceInvite';
 import { Modal } from './Modal';
 import { useWorkspace, Workspace } from './WorkspaceProvider';
 
@@ -26,7 +27,7 @@ export function CoSpaceHome() {
     try {
       const { data } = mode === 'create'
         ? await api.post('/workspaces', { name: name.trim(), accentColor: '#0f766e' })
-        : await api.post(`/workspaces/join/${inviteCode.trim()}`);
+        : await api.post(`/workspaces/join/${encodeURIComponent(normalizeInviteCode(inviteCode))}`);
       await refreshWorkspaces();
       switchWorkspace(data.data.id);
       setMode(null);
@@ -108,7 +109,7 @@ export function CoSpaceHome() {
           autoFocus
           value={mode === 'create' ? name : inviteCode}
           onChange={(event) => (mode === 'create' ? setName(event.target.value) : setInviteCode(event.target.value))}
-          placeholder={mode === 'create' ? 'Monday Studio' : 'Paste the invitation code'}
+          placeholder={mode === 'create' ? 'Monday Studio' : 'Paste the invitation code or invite link'}
           className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-accent-blue"
         />
       </div>

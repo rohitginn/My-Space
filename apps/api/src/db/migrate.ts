@@ -120,6 +120,68 @@ const runMigrate = async () => {
     ON "workspace_integrations" ("workspace_id", "provider");
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS "canvas_comments" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "canvas_id" uuid NOT NULL,
+      "workspace_id" uuid NOT NULL,
+      "user_id" uuid NOT NULL,
+      "user_name" varchar(200) DEFAULT 'Collaborator' NOT NULL,
+      "x" jsonb NOT NULL,
+      "y" jsonb NOT NULL,
+      "content" varchar(1000) NOT NULL,
+      "is_resolved" timestamp with time zone,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "collaboration_documents" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "workspace_id" uuid NOT NULL,
+      "resource_type" varchar(20) NOT NULL,
+      "resource_id" uuid NOT NULL,
+      "state" text NOT NULL,
+      "revision" integer DEFAULT 0 NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "collaboration_documents_resource_unique"
+    ON "collaboration_documents" ("workspace_id", "resource_type", "resource_id");
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "notifications" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" uuid NOT NULL,
+      "workspace_id" uuid,
+      "actor_id" uuid,
+      "type" varchar(40) NOT NULL,
+      "entity_type" varchar(30),
+      "entity_id" uuid,
+      "payload" jsonb DEFAULT '{}'::jsonb NOT NULL,
+      "read_at" timestamp with time zone,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "password_reset_tokens" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "user_id" uuid NOT NULL,
+      "token_hash" varchar(128) NOT NULL UNIQUE,
+      "expires_at" timestamp with time zone NOT NULL,
+      "used_at" timestamp with time zone,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
+  await sql`ALTER TABLE "kanban_boards" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`;
+  await sql`ALTER TABLE "notes" ADD COLUMN IF NOT EXISTS "workspace_id" uuid;`;
+  await sql`ALTER TABLE "kanban_cards" ADD COLUMN IF NOT EXISTS "assignee_id" uuid;`;
+
   console.log('Fixes applied successfully!');
   await sql.end();
   process.exit(0);

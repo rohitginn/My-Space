@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Loader2, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { normalizeInviteCode } from '@/lib/workspaceInvite';
 import { useWorkspace } from './WorkspaceProvider';
 
 export function JoinCoSpace({ inviteCode }: { inviteCode: string }) {
@@ -16,7 +17,7 @@ export function JoinCoSpace({ inviteCode }: { inviteCode: string }) {
     setPending(true);
     setError('');
     try {
-      const { data } = await api.post(`/workspaces/join/${inviteCode}`);
+      const { data } = await api.post(`/workspaces/join/${encodeURIComponent(normalizeInviteCode(inviteCode))}`);
       await refreshWorkspaces();
       switchWorkspace(data.data.id);
       router.push(`/co-space/${data.data.id}/canvas`);

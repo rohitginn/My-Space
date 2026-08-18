@@ -129,16 +129,19 @@ export function MoodRoughIcon({ isHovered, isSelected, color = 'currentColor' }:
       {/* Animated falling rain droplets */}
       <motion.line
         x1="8" y1="17" x2="8" y2="20"
+        initial={{ opacity: 0.2 }}
         animate={isHovered ? { y: [0, 4, 0], opacity: [0, 1, 0] } : { y: 0, opacity: 0.2 }}
         transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }}
       />
       <motion.line
         x1="12" y1="17" x2="12" y2="20"
+        initial={{ opacity: 0.2 }}
         animate={isHovered ? { y: [0, 4, 0], opacity: [0, 1, 0] } : { y: 0, opacity: 0.2 }}
         transition={{ repeat: Infinity, duration: 0.6, ease: 'linear', delay: 0.2 }}
       />
       <motion.line
         x1="16" y1="17" x2="16" y2="20"
+        initial={{ opacity: 0.2 }}
         animate={isHovered ? { y: [0, 4, 0], opacity: [0, 1, 0] } : { y: 0, opacity: 0.2 }}
         transition={{ repeat: Infinity, duration: 0.6, ease: 'linear', delay: 0.4 }}
       />

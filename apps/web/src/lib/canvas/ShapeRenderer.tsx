@@ -162,7 +162,7 @@ function PenRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
       <path
-        d={pen.pathData}
+        d={pen.pathData || ''}
         fill="none"
         stroke={pen.color}
         strokeWidth={pen.strokeWidth}
@@ -179,7 +179,7 @@ function HighlighterRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const highlighter = shape as HighlighterShape;
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
-      <path d={highlighter.pathData} fill="none" stroke={highlighter.color} strokeWidth={highlighter.strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={highlighter.opacity} style={{ mixBlendMode: 'multiply' }} />
+      <path d={highlighter.pathData || ''} fill="none" stroke={highlighter.color} strokeWidth={highlighter.strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={highlighter.opacity} style={{ mixBlendMode: 'multiply' }} />
     </RotationWrapper>
   );
 }
@@ -664,23 +664,32 @@ function MediaRenderer({ shape, assets, onPointerDown }: ShapeRendererProps) {
 // ── Main Shape Dispatcher ───────────────────────────────────
 
 export function ShapeRenderer(props: ShapeRendererProps) {
-  switch (props.shape.type) {
+  const shape = {
+    ...props.shape,
+    opacity: Number.isFinite(props.shape.opacity) ? props.shape.opacity : 1,
+    ...(props.shape.type === 'pen' || props.shape.type === 'highlighter'
+      ? { pathData: props.shape.pathData || '' }
+      : {}),
+  } as CanvasShape;
+  const normalizedProps = { ...props, shape };
+
+  switch (shape.type) {
     case 'pen':
-      return <PenRenderer {...props} />;
+      return <PenRenderer {...normalizedProps} />;
     case 'highlighter':
-      return <HighlighterRenderer {...props} />;
+      return <HighlighterRenderer {...normalizedProps} />;
     case 'rectangle':
-      return <RectRenderer {...props} />;
+      return <RectRenderer {...normalizedProps} />;
     case 'ellipse':
-      return <EllipseRenderer {...props} />;
+      return <EllipseRenderer {...normalizedProps} />;
     case 'line':
-      return <LineRenderer {...props} />;
+      return <LineRenderer {...normalizedProps} />;
     case 'arrow':
-      return <ArrowRenderer {...props} />;
+      return <ArrowRenderer {...normalizedProps} />;
     case 'text':
-      return <TextRenderer {...props} />;
+      return <TextRenderer {...normalizedProps} />;
     case 'sticky-note':
-      return <StickyNoteRenderer {...props} />;
+      return <StickyNoteRenderer {...normalizedProps} />;
     case 'diamond':
     case 'triangle':
     case 'star':
@@ -690,17 +699,17 @@ export function ShapeRenderer(props: ShapeRendererProps) {
     case 'parallelogram':
     case 'trapezoid':
     case 'callout':
-      return <PolygonRenderer {...props} />;
+      return <PolygonRenderer {...normalizedProps} />;
     case 'frame':
-      return <FrameRenderer {...props} />;
+      return <FrameRenderer {...normalizedProps} />;
     case 'cylinder':
-      return <CylinderRenderer {...props} />;
+      return <CylinderRenderer {...normalizedProps} />;
     case 'image':
-      return <ImageRenderer {...props} />;
+      return <ImageRenderer {...normalizedProps} />;
     case 'video':
     case 'bookmark':
     case 'embed':
-      return <MediaRenderer {...props} />;
+      return <MediaRenderer {...normalizedProps} />;
     default:
       return null;
   }
