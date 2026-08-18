@@ -17,6 +17,7 @@ export function CommandPalette() {
   const [results, setResults] = useState<SearchResult>({ notes: [], todos: [], cards: [] });
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const focusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const router = useRouter();
 
   // Handle Cmd+K / Ctrl+K
@@ -37,11 +38,20 @@ export function CommandPalette() {
   // Focus input when opened
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      focusTimerRef.current = setTimeout(() => {
+        focusTimerRef.current = null;
+        inputRef.current?.focus();
+      }, 100);
     } else {
       setQuery('');
       setResults({ notes: [], todos: [], cards: [] });
     }
+    return () => {
+      if (focusTimerRef.current) {
+        clearTimeout(focusTimerRef.current);
+        focusTimerRef.current = null;
+      }
+    };
   }, [isOpen]);
 
   // Handle search
@@ -51,19 +61,23 @@ export function CommandPalette() {
       return;
     }
 
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const { data } = await api.get(`/search?q=${encodeURIComponent(query)}`);
-        setResults(data.data);
+        const { data } = await api.get(`/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        if (!controller.signal.aborted) setResults(data.data);
       } catch (error) {
-        console.error('Search failed', error);
+        if (!controller.signal.aborted) console.error('Search failed', error);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query]);
 
   const handleNavigate = (path: string) => {

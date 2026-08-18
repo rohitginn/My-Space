@@ -39,10 +39,16 @@ const SHAPES = [
   { type: 'triangle', label: 'Triangle', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="12,3 21,20 3,20"/></svg> },
   { type: 'star', label: 'Star', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9"/></svg> },
   { type: 'hexagon', label: 'Hexagon', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="12,3 20,7.5 20,16.5 12,21 4,16.5 4,7.5"/></svg> },
+  { type: 'octagon', label: 'Octagon', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="8,3 16,3 21,8 21,16 16,21 8,21 3,16 3,8"/></svg> },
+  { type: 'cloud', label: 'Cloud', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M6 18h11a4 4 0 0 0 .4-8A5.5 5.5 0 0 0 7 8a4 4 0 0 0-1 10Z"/></svg> },
   { type: 'parallelogram', label: 'Parallelogram', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="7,6 21,6 17,18 3,18"/></svg> },
   { type: 'trapezoid', label: 'Trapezoid', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><polygon points="6,6 18,6 21,18 3,18"/></svg> },
   { type: 'cylinder', label: 'Cylinder', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><ellipse cx="12" cy="6" rx="6" ry="2.5"/><path d="M6 6 V18 A 6 2.5 0 0 0 18 18 V6"/></svg> },
   { type: 'callout', label: 'Speech Bubble', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> },
+  { type: 'frame', label: 'Frame', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><rect x="4" y="4" width="16" height="16" strokeDasharray="3 2"/><path d="M4 8h4M16 4v4"/></svg> },
+  { type: 'video', label: 'Video', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 5 3-5 3Z"/></svg> },
+  { type: 'bookmark', label: 'Bookmark', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><path d="M6 4h12v16l-6-3-6 3Z"/></svg> },
+  { type: 'embed', label: 'Embed', icon: (props: any) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m9 9-3 3 3 3m6-6 3 3-3 3"/></svg> },
 ];
 
 const STROKE_WIDTH_PRESETS = [
@@ -63,6 +69,12 @@ const FILL_STYLES: { value: FillStyleType; label: string }[] = [
   { value: 'hachure', label: 'Hachure' },
   { value: 'solid', label: 'Solid' },
   { value: 'cross-hatch', label: 'Cross Hatch' },
+];
+
+const FONT_FAMILIES = [
+  { value: 'system-ui, sans-serif', label: 'Sans' },
+  { value: 'Georgia, serif', label: 'Serif' },
+  { value: 'ui-monospace, SFMono-Regular, monospace', label: 'Mono' },
 ];
 
 export function CanvasToolbar({
@@ -106,14 +118,14 @@ export function CanvasToolbar({
   return (
     <div
       ref={toolbarRef}
-      className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex flex-col-reverse items-center gap-3 pointer-events-none"
+      className="absolute bottom-3 left-1/2 z-30 flex max-w-[calc(100%-1rem)] -translate-x-1/2 flex-col-reverse items-center gap-3 pointer-events-none md:bottom-6"
     >
       {/* Main floating tool bar */}
       <motion.div
-        initial={{ y: 20, opacity: 0 }}
+        initial={{ y: 20 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 200, damping: 20 }}
-        className="flex items-center gap-1 bg-surface/90 backdrop-blur-xl border border-border/60 rounded-2xl px-2 py-1.5 shadow-2xl pointer-events-auto"
+        className="flex max-w-full items-center gap-1 overflow-x-auto bg-surface/90 backdrop-blur-xl border border-border/60 rounded-2xl px-2 py-1.5 shadow-2xl pointer-events-auto"
       >
         {/* Core Tools */}
         <motion.button
@@ -141,6 +153,15 @@ export function CanvasToolbar({
           className={`p-2.5 rounded-xl transition-colors ${activeTool === 'pen' ? 'bg-accent-blue text-white shadow-lg' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}
         >
           <Pencil size={18} />
+        </motion.button>
+
+        <motion.button
+          whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.92 }}
+          onClick={() => onToolChange('highlighter')}
+          title="Highlighter"
+          className={`p-2.5 rounded-xl transition-colors ${activeTool === 'highlighter' ? 'bg-accent-blue text-white shadow-lg' : 'text-muted hover:text-foreground hover:bg-surface-hover'}`}
+        >
+          <span className="block h-1 w-5 rounded-full bg-current opacity-70" />
         </motion.button>
 
         <motion.button
@@ -360,8 +381,33 @@ export function CanvasToolbar({
               </div>
             </div>
 
+            {(activeTool === 'text' || hasSelection && toolStyle.fontSize > 0) && (
+              <div className="border-t border-border/40 pt-4 mt-4 space-y-3">
+                <p className="text-xs text-muted font-medium uppercase tracking-wider">Text</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {(['regular', 'medium', 'semibold', 'bold'] as const).map((weight) => (
+                    <button key={weight} onClick={() => onStyleChange({ fontWeight: weight })} className={`rounded-lg border py-1.5 text-xs capitalize ${toolStyle.fontWeight === weight ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}>{weight === 'semibold' ? 'Semi' : weight}</button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {[14, 18, 24, 32, 48, 64].map((size) => <button key={size} onClick={() => onStyleChange({ fontSize: size })} className={`rounded-lg border py-1.5 text-xs ${toolStyle.fontSize === size ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}>{size}</button>)}
+                </div>
+                <select value={toolStyle.fontFamily ?? 'system-ui, sans-serif'} onChange={(event) => onStyleChange({ fontFamily: event.target.value })} className="w-full rounded-lg border border-border/50 bg-background px-2 py-1.5 text-xs text-foreground">
+                  {FONT_FAMILIES.map((font) => <option key={font.value} value={font.value}>{font.label}</option>)}
+                </select>
+                <div className="grid grid-cols-4 gap-2">
+                  <button onClick={() => onStyleChange({ fontStyle: 'normal' })} className={`rounded-lg border py-1.5 text-xs ${toolStyle.fontStyle !== 'italic' ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}>Normal</button>
+                  <button onClick={() => onStyleChange({ fontStyle: 'italic' })} className={`rounded-lg border py-1.5 text-xs italic ${toolStyle.fontStyle === 'italic' ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}>Italic</button>
+                  {(['left', 'center', 'right'] as const).map((align) => <button key={align} onClick={() => onStyleChange({ textAlign: align })} className={`rounded-lg border py-1.5 text-xs capitalize ${toolStyle.textAlign === align ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}>{align}</button>)}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['top', 'middle', 'bottom'] as const).map((align) => <button key={align} onClick={() => onStyleChange({ verticalAlign: align })} className={`rounded-lg border py-1.5 text-xs capitalize ${toolStyle.verticalAlign === align ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}>{align}</button>)}
+                </div>
+              </div>
+            )}
+
             {/* Arrow Specific Options */}
-            {activeTool === 'arrow' && (
+            {(activeTool === 'arrow' || (hasSelection && (toolStyle.arrowHead !== undefined || toolStyle.arrowStyle !== undefined))) && (
               <div className="border-t border-border/40 pt-4 mt-4 space-y-4">
                 <div>
                   <p className="text-xs text-muted font-medium mb-2 uppercase tracking-wider">Arrow Direction</p>
@@ -369,8 +415,8 @@ export function CanvasToolbar({
                     {(['none', 'start', 'end', 'both'] as const).map((head) => (
                       <button
                         key={head}
-                        onClick={() => onStyleChange({ arrowHead: head } as any)}
-                        className={`py-1.5 rounded-lg text-xs font-bold border capitalize transition-all ${(toolStyle as any).arrowHead === head ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}
+                        onClick={() => onStyleChange({ arrowHead: head })}
+                        className={`py-1.5 rounded-lg text-xs font-bold border capitalize transition-all ${toolStyle.arrowHead === head ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}
                       >
                         {head}
                       </button>
@@ -384,8 +430,8 @@ export function CanvasToolbar({
                     {(['straight', 'curved', 'elbow'] as const).map((style) => (
                       <button
                         key={style}
-                        onClick={() => onStyleChange({ arrowStyle: style } as any)}
-                        className={`py-1.5 rounded-lg text-xs font-bold border capitalize transition-all ${(toolStyle as any).arrowStyle === style ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}
+                        onClick={() => onStyleChange({ arrowStyle: style })}
+                        className={`py-1.5 rounded-lg text-xs font-bold border capitalize transition-all ${toolStyle.arrowStyle === style ? 'border-accent-blue bg-accent-blue/10 text-accent-blue' : 'border-border/40 text-muted hover:bg-surface-hover'}`}
                       >
                         {style}
                       </button>

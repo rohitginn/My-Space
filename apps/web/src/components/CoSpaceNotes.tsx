@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, FileText, Loader2, Pin, Trash2, Edit3, Check, Save, Heading1, CheckSquare, Code, Quote } from 'lucide-react';
+import { Plus, FileText, Loader2, Pin, Trash2, Edit3, Save, RefreshCw, Heading1, CheckSquare, Code, Quote } from 'lucide-react';
 import api from '@/lib/api';
 import { Modal } from './Modal';
+import { CoSpaceContext } from './CoSpaceContext';
+import { useDialog } from './DialogProvider';
+import { io, Socket } from 'socket.io-client';
+import * as Y from 'yjs';
+import { applyNoteSnapshot, readNoteSnapshot } from '@/lib/collaboration/noteYjs';
 
 type Note = {
   id: string;
@@ -15,8 +19,20 @@ type Note = {
   updatedAt: string;
 };
 
+function encodeYjsUpdate(update: Uint8Array) {
+  let binary = '';
+  update.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+function decodeYjsUpdate(update: string) {
+  const binary = atob(update);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
 export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
   const queryClient = useQueryClient();
+  const { confirm } = useDialog();
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -24,9 +40,12 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const noteSocketRef = useRef<Socket | null>(null);
+  const noteDocRef = useRef<Y.Doc | null>(null);
+  const noteJoinedRef = useRef(false);
 
   // Fetch workspace notes
-  const { data: notes = [], isLoading } = useQuery({
+  const { data: notes = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['workspace-notes', workspaceId],
     queryFn: async () => {
       const { data } = await api.get(`/notes/workspaces/${workspaceId}`);
@@ -34,7 +53,57 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
     },
   });
 
+  const togglePin = useMutation({
+    mutationFn: async (id: string) => (await api.patch(`/notes/${id}/pin`)).data.data as Note,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['workspace-notes', workspaceId] }),
+  });
+
   const activeNote = notes.find((n) => n.id === selectedNoteId) || notes[0] || null;
+
+  useEffect(() => {
+    if (!activeNote) return;
+    const token = localStorage.getItem('accessToken');
+    const doc = new Y.Doc();
+    const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000', { auth: { token } });
+    const updateCache = () => {
+      const snapshot = readNoteSnapshot(doc);
+      queryClient.setQueryData<Note[]>(['workspace-notes', workspaceId], (current = []) => current.map((note) => note.id === activeNote.id ? { ...note, title: snapshot.title || 'Untitled', content: snapshot.content, updatedAt: new Date().toISOString() } : note));
+      setEditTitle(snapshot.title);
+      setEditContent(snapshot.content);
+    };
+    const handleUpdate = (update: Uint8Array, origin: unknown) => {
+      if (origin !== 'remote' && origin !== 'sync' && noteJoinedRef.current && socket.connected) socket.emit('collab:update', { workspaceId, resourceType: 'note', resourceId: activeNote.id, update: encodeYjsUpdate(update) });
+    };
+    doc.on('update', handleUpdate);
+    socket.on('collab:sync', ({ update }: { update: string }) => {
+      if (typeof update !== 'string') return;
+      Y.applyUpdate(doc, decodeYjsUpdate(update), 'sync');
+      updateCache();
+      noteJoinedRef.current = true;
+    });
+    socket.on('collab:update', ({ update }: { update: string }) => {
+      if (typeof update !== 'string') return;
+      Y.applyUpdate(doc, decodeYjsUpdate(update), 'remote');
+      updateCache();
+    });
+    const join = () => socket.emit('collab:join', { workspaceId, resourceType: 'note', resourceId: activeNote.id });
+    socket.on('connect', join);
+    if (socket.connected) join();
+    noteSocketRef.current = socket;
+    noteDocRef.current = doc;
+    return () => {
+      socket.off('connect', join);
+      socket.off('collab:sync');
+      socket.off('collab:update');
+      socket.emit('collab:leave', { workspaceId, resourceType: 'note', resourceId: activeNote.id });
+      socket.disconnect();
+      doc.off('update', handleUpdate);
+      doc.destroy();
+      noteSocketRef.current = null;
+      noteDocRef.current = null;
+      noteJoinedRef.current = false;
+    };
+  }, [activeNote?.id, queryClient, workspaceId]);
 
   // Create workspace note
   const createNote = useMutation({
@@ -82,8 +151,22 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
     }
   };
 
+  const removeActiveNote = async () => {
+    if (!activeNote || !(await confirm(`Delete “${activeNote.title}”? You can restore it from Notes later.`, { title: 'Move document to trash' }))) return;
+    deleteNote.mutate(activeNote.id);
+  };
+
+  const updateEditContent = (transform: (content: string) => string) => {
+    setEditContent((previous) => {
+      const next = transform(previous);
+      if (noteDocRef.current) applyNoteSnapshot(noteDocRef.current, { title: editTitle, content: next }, 'local');
+      return next;
+    });
+  };
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 md:px-10 h-[calc(100vh-2rem)] flex flex-col">
+    <div className="mx-auto flex min-h-full max-w-7xl flex-col px-4 py-8 sm:px-6 md:px-10">
+      <CoSpaceContext workspaceId={workspaceId} current="notes" />
       {/* Header */}
       <header className="mb-6 flex items-center justify-between shrink-0">
         <div>
@@ -105,6 +188,13 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
         <div className="py-20 text-center text-muted">
           <Loader2 className="mx-auto animate-spin" size={28} />
           <p className="mt-2 text-sm">Loading workspace notes...</p>
+        </div>
+      ) : isError ? (
+        <div role="alert" className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
+          <FileText className="mx-auto text-muted" size={36} />
+          <h3 className="mt-4 text-lg font-semibold">Documents are unavailable</h3>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-muted">We couldn’t load the shared documents for this Co-Space.</p>
+          <button onClick={() => refetch()} className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold hover:bg-surface-hover cursor-pointer"><RefreshCw size={15} />Try again</button>
         </div>
       ) : notes.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-12 text-center bg-surface/50 my-auto">
@@ -140,7 +230,7 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <h4 className="font-semibold text-sm truncate">{n.title}</h4>
-                  {n.isPinned && <Pin size={13} className="text-accent-blue shrink-0" />}
+                  {n.isPinned && <Pin size={13} className="text-accent-blue shrink-0" aria-label="Pinned" />}
                 </div>
                 <p className="mt-1 text-xs text-muted truncate">{n.content || 'No text content'}</p>
                 <span className="mt-2 block text-[10px] text-muted">
@@ -157,7 +247,10 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
                 {isEditing ? (
                   <input
                     value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
+                    onChange={(e) => {
+                      setEditTitle(e.target.value);
+                      if (noteDocRef.current) applyNoteSnapshot(noteDocRef.current, { title: e.target.value, content: editContent }, 'local');
+                    }}
                     className="text-2xl font-bold bg-background border border-border rounded-xl px-3 py-1 outline-none focus:border-accent-blue w-full max-w-md"
                   />
                 ) : (
@@ -183,11 +276,22 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
                   )}
 
                   <button
-                    onClick={() => deleteNote.mutate(activeNote.id)}
+                    onClick={removeActiveNote}
+                    disabled={deleteNote.isPending}
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border text-muted hover:text-red-500 hover:bg-surface-hover transition-colors cursor-pointer"
-                    title="Delete Note"
+                    title="Move document to trash"
+                    aria-label="Move document to trash"
                   >
-                    <Trash2 size={16} />
+                    {deleteNote.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                  </button>
+                  <button
+                    onClick={() => togglePin.mutate(activeNote.id)}
+                    disabled={togglePin.isPending}
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border transition-colors cursor-pointer ${activeNote.isPinned ? 'text-accent-blue bg-accent-blue/10' : 'text-muted hover:bg-surface-hover hover:text-foreground'}`}
+                    title={activeNote.isPinned ? 'Unpin document' : 'Pin document'}
+                    aria-label={activeNote.isPinned ? 'Unpin document' : 'Pin document'}
+                  >
+                    <Pin size={15} />
                   </button>
                 </div>
               </div>
@@ -199,14 +303,14 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
                     <div className="mb-2 flex items-center gap-1.5 p-1 rounded-xl bg-background border border-border shrink-0">
                       <button
                         type="button"
-                        onClick={() => setEditContent((prev) => prev ? `${prev}\n# ` : '# ')}
+                        onClick={() => updateEditContent((prev) => prev ? `${prev}\n# ` : '# ')}
                         className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-surface-hover flex items-center gap-1 text-foreground cursor-pointer"
                       >
                         <Heading1 size={14} /> Heading
                       </button>
                       <button
                         type="button"
-                        onClick={() => setEditContent((prev) => prev ? `${prev}\n- [ ] ` : '- [ ] ')}
+                        onClick={() => updateEditContent((prev) => prev ? `${prev}\n- [ ] ` : '- [ ] ')}
                         className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-surface-hover flex items-center gap-1 text-foreground cursor-pointer"
                       >
                         <CheckSquare size={14} /> Checklist
@@ -220,7 +324,7 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setEditContent((prev) => prev ? `${prev}\n> ` : '> ')}
+                        onClick={() => updateEditContent((prev) => prev ? `${prev}\n> ` : '> ')}
                         className="px-2.5 py-1 text-xs font-semibold rounded-lg hover:bg-surface-hover flex items-center gap-1 text-foreground cursor-pointer"
                       >
                         <Quote size={14} /> Quote
@@ -228,7 +332,10 @@ export function CoSpaceNotes({ workspaceId }: { workspaceId: string }) {
                     </div>
                     <textarea
                       value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
+                      onChange={(e) => {
+                        setEditContent(e.target.value);
+                        if (noteDocRef.current) applyNoteSnapshot(noteDocRef.current, { title: editTitle, content: e.target.value }, 'local');
+                      }}
                       placeholder="Write document in Markdown... (Type / or use block formatting toolbar above)"
                       className="w-full flex-1 min-h-[300px] rounded-xl border border-border bg-background p-4 text-sm font-mono text-foreground outline-none focus:border-accent-blue resize-none"
                     />

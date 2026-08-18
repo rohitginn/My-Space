@@ -1,294 +1,81 @@
-// ============================================================
-// Custom Infinite Canvas Engine - State Management Hook
-// ============================================================
+'use client';
 
-import { useReducer, useCallback, useRef } from 'react';
-import type {
-  Camera, CanvasShape, ToolType, ToolStyle,
-  CanvasDocument, HandlePosition, PenShape,
-} from './types';
-import { pointsToSmoothPath } from './math';
+import { useState, useSyncExternalStore } from 'react';
+import { CanvasEditor } from './editor';
+import type { CanvasDocument, CanvasShape, CommentPin, HandlePosition, ToolStyle, ToolType } from './types';
 
-// ── State ───────────────────────────────────────────────────
-
-export interface CanvasEngineState {
-  camera: Camera;
-  shapes: Record<string, CanvasShape>;
-  selectedIds: string[];
-  activeTool: ToolType;
-  toolStyle: ToolStyle;
-  isDrawing: boolean;
-  isPanning: boolean;
-  isDragging: boolean;
-  isResizing: boolean;
-  isRotating: boolean;
-  activeHandle: HandlePosition | null;
-}
-
-const DEFAULT_TOOL_STYLE: ToolStyle = {
-  color: '#0ea5e9',
-  strokeWidth: 2,
-  strokeStyle: 'solid',
-  fill: 'transparent',
-  fillStyle: 'none',
-  opacity: 1,
-  fontSize: 16,
-  borderRadius: 0,
-};
-
-const DEFAULT_CAMERA: Camera = { x: 0, y: 0, zoom: 1 };
-
-function createInitialState(doc?: CanvasDocument): CanvasEngineState {
-  return {
-    camera: doc?.camera ?? DEFAULT_CAMERA,
-    shapes: doc?.shapes ?? {},
-    selectedIds: [],
-    activeTool: 'select',
-    toolStyle: { ...DEFAULT_TOOL_STYLE },
-    isDrawing: false,
-    isPanning: false,
-    isDragging: false,
-    isResizing: false,
-    isRotating: false,
-    activeHandle: null,
-  };
-}
-
-// ── Actions ─────────────────────────────────────────────────
-
-type Action =
-  | { type: 'SET_CAMERA'; camera: Camera }
-  | { type: 'SET_TOOL'; tool: ToolType }
-  | { type: 'SET_TOOL_STYLE'; style: Partial<ToolStyle> }
-  | { type: 'ADD_SHAPE'; shape: CanvasShape }
-  | { type: 'UPDATE_SHAPE'; id: string; changes: Partial<CanvasShape> }
-  | { type: 'DELETE_SHAPES'; ids: string[] }
-  | { type: 'SET_SELECTED'; ids: string[] }
-  | { type: 'SET_DRAWING'; value: boolean }
-  | { type: 'SET_PANNING'; value: boolean }
-  | { type: 'SET_DRAGGING'; value: boolean }
-  | { type: 'SET_RESIZING'; value: boolean; handle?: HandlePosition | null }
-  | { type: 'SET_ROTATING'; value: boolean }
-  | { type: 'MOVE_SHAPES'; ids: string[]; dx: number; dy: number }
-  | { type: 'BRING_TO_FRONT'; ids: string[] }
-  | { type: 'SEND_TO_BACK'; ids: string[] }
-  | { type: 'LOAD_DOCUMENT'; doc: CanvasDocument }
-  | { type: 'RESTORE_SHAPES'; shapes: Record<string, CanvasShape> }
-  | { type: 'CLEAR_CANVAS' };
-
-// ── Reducer ─────────────────────────────────────────────────
-
-function canvasReducer(state: CanvasEngineState, action: Action): CanvasEngineState {
-  switch (action.type) {
-    case 'SET_CAMERA':
-      return { ...state, camera: action.camera };
-
-    case 'SET_TOOL':
-      return { ...state, activeTool: action.tool, selectedIds: action.tool !== 'select' ? [] : state.selectedIds };
-
-    case 'SET_TOOL_STYLE':
-      return { ...state, toolStyle: { ...state.toolStyle, ...action.style } };
-
-    case 'ADD_SHAPE': {
-      const newShapes = { ...state.shapes, [action.shape.id]: action.shape };
-      return { ...state, shapes: newShapes };
-    }
-
-    case 'UPDATE_SHAPE': {
-      const existing = state.shapes[action.id];
-      if (!existing) return state;
-      const updated = { ...existing, ...action.changes } as CanvasShape;
-      return { ...state, shapes: { ...state.shapes, [action.id]: updated } };
-    }
-
-    case 'DELETE_SHAPES': {
-      const newShapes = { ...state.shapes };
-      for (const id of action.ids) {
-        delete newShapes[id];
-      }
-      return {
-        ...state,
-        shapes: newShapes,
-        selectedIds: state.selectedIds.filter(id => !action.ids.includes(id)),
-      };
-    }
-
-    case 'SET_SELECTED':
-      return { ...state, selectedIds: action.ids };
-
-    case 'SET_DRAWING':
-      return { ...state, isDrawing: action.value };
-
-    case 'SET_PANNING':
-      return { ...state, isPanning: action.value };
-
-    case 'SET_DRAGGING':
-      return { ...state, isDragging: action.value };
-
-    case 'SET_RESIZING':
-      return { ...state, isResizing: action.value, activeHandle: action.handle ?? null };
-
-    case 'SET_ROTATING':
-      return { ...state, isRotating: action.value };
-
-    case 'MOVE_SHAPES': {
-      const newShapes = { ...state.shapes };
-      for (const id of action.ids) {
-        const shape = newShapes[id];
-        if (shape) {
-          if (shape.type === 'pen') {
-            const pen = shape as PenShape;
-            const newPoints = pen.points.map(p => ({ x: p.x + action.dx, y: p.y + action.dy }));
-            newShapes[id] = {
-              ...pen,
-              x: pen.x + action.dx,
-              y: pen.y + action.dy,
-              points: newPoints,
-              pathData: pointsToSmoothPath(newPoints),
-            } as CanvasShape;
-          } else {
-            newShapes[id] = { ...shape, x: shape.x + action.dx, y: shape.y + action.dy } as CanvasShape;
-          }
-        }
-      }
-      return { ...state, shapes: newShapes };
-    }
-
-    case 'BRING_TO_FRONT': {
-      const allShapes = Object.values(state.shapes);
-      const maxZ = allShapes.reduce((max, s) => Math.max(max, s.zIndex), 0);
-      const newShapes = { ...state.shapes };
-      let offset = 1;
-      for (const id of action.ids) {
-        if (newShapes[id]) {
-          newShapes[id] = { ...newShapes[id], zIndex: maxZ + offset } as CanvasShape;
-          offset++;
-        }
-      }
-      return { ...state, shapes: newShapes };
-    }
-
-    case 'SEND_TO_BACK': {
-      const allShapes = Object.values(state.shapes);
-      const minZ = allShapes.reduce((min, s) => Math.min(min, s.zIndex), 0);
-      const newShapes = { ...state.shapes };
-      let offset = 1;
-      for (const id of action.ids) {
-        if (newShapes[id]) {
-          newShapes[id] = { ...newShapes[id], zIndex: minZ - offset } as CanvasShape;
-          offset++;
-        }
-      }
-      return { ...state, shapes: newShapes };
-    }
-
-    case 'LOAD_DOCUMENT':
-      return {
-        ...state,
-        shapes: action.doc.shapes ?? {},
-        camera: action.doc.camera ?? DEFAULT_CAMERA,
-        selectedIds: [],
-      };
-
-    case 'RESTORE_SHAPES':
-      return { ...state, shapes: action.shapes };
-
-    case 'CLEAR_CANVAS':
-      return { ...state, shapes: {}, selectedIds: [] };
-
-    default:
-      return state;
-  }
-}
-
-// ── Hook ────────────────────────────────────────────────────
-
+/**
+ * React adapter for the framework-agnostic editor. Components consume a
+ * snapshot; mutations are routed through CanvasEditor so history, migration,
+ * bindings and persistence all share one transaction boundary.
+ */
 export function useCanvasEngine(initialDoc?: CanvasDocument) {
-  const [state, dispatch] = useReducer(canvasReducer, initialDoc, createInitialState);
-
-  // Undo/Redo history stack
-  const historyRef = useRef<{ shapes: Record<string, CanvasShape> }[]>([]);
-  const historyIndexRef = useRef(-1);
-
-  const pushHistory = useCallback(() => {
-    const snapshot = JSON.parse(JSON.stringify(state.shapes));
-    historyRef.current = historyRef.current.slice(0, historyIndexRef.current + 1);
-    historyRef.current.push({ shapes: snapshot });
-    historyIndexRef.current = historyRef.current.length - 1;
-
-    if (historyRef.current.length > 100) {
-      historyRef.current.shift();
-      historyIndexRef.current--;
-    }
-  }, [state.shapes]);
-
-  const undo = useCallback(() => {
-    if (historyIndexRef.current <= 0) return;
-    historyIndexRef.current--;
-    const prev = historyRef.current[historyIndexRef.current];
-    if (prev) {
-      dispatch({ type: 'RESTORE_SHAPES', shapes: JSON.parse(JSON.stringify(prev.shapes)) });
-    }
-  }, []);
-
-  const redo = useCallback(() => {
-    if (historyIndexRef.current >= historyRef.current.length - 1) return;
-    historyIndexRef.current++;
-    const next = historyRef.current[historyIndexRef.current];
-    if (next) {
-      dispatch({ type: 'RESTORE_SHAPES', shapes: JSON.parse(JSON.stringify(next.shapes)) });
-    }
-  }, []);
-
-  // Convenience dispatchers
-  const setCamera = useCallback((camera: Camera) => dispatch({ type: 'SET_CAMERA', camera }), []);
-  const setTool = useCallback((tool: ToolType) => dispatch({ type: 'SET_TOOL', tool }), []);
-  const setToolStyle = useCallback((style: Partial<ToolStyle>) => dispatch({ type: 'SET_TOOL_STYLE', style }), []);
-  const addShape = useCallback((shape: CanvasShape) => dispatch({ type: 'ADD_SHAPE', shape }), []);
-  const updateShape = useCallback((id: string, changes: Partial<CanvasShape>) => dispatch({ type: 'UPDATE_SHAPE', id, changes }), []);
-  const deleteShapes = useCallback((ids: string[]) => dispatch({ type: 'DELETE_SHAPES', ids }), []);
-  const setSelected = useCallback((ids: string[]) => dispatch({ type: 'SET_SELECTED', ids }), []);
-  const setDrawing = useCallback((v: boolean) => dispatch({ type: 'SET_DRAWING', value: v }), []);
-  const setPanning = useCallback((v: boolean) => dispatch({ type: 'SET_PANNING', value: v }), []);
-  const setDragging = useCallback((v: boolean) => dispatch({ type: 'SET_DRAGGING', value: v }), []);
-  const setResizing = useCallback((v: boolean, handle?: HandlePosition | null) => dispatch({ type: 'SET_RESIZING', value: v, handle }), []);
-  const setRotating = useCallback((v: boolean) => dispatch({ type: 'SET_ROTATING', value: v }), []);
-  const moveShapes = useCallback((ids: string[], dx: number, dy: number) => dispatch({ type: 'MOVE_SHAPES', ids, dx, dy }), []);
-  const bringToFront = useCallback((ids: string[]) => dispatch({ type: 'BRING_TO_FRONT', ids }), []);
-  const sendToBack = useCallback((ids: string[]) => dispatch({ type: 'SEND_TO_BACK', ids }), []);
-  const loadDocument = useCallback((doc: CanvasDocument) => dispatch({ type: 'LOAD_DOCUMENT', doc }), []);
-  const clearCanvas = useCallback(() => dispatch({ type: 'CLEAR_CANVAS' }), []);
-
-  /** Get the current document state for serialization/autosave */
-  const getDocument = useCallback((): CanvasDocument => {
-    return { shapes: state.shapes, camera: state.camera };
-  }, [state.shapes, state.camera]);
+  const [editor] = useState(() => new CanvasEditor(initialDoc));
+  const state = useSyncExternalStore(editor.subscribe, editor.getSnapshot, editor.getSnapshot);
 
   return {
     state,
-    dispatch,
-    setCamera,
-    setTool,
-    setToolStyle,
-    addShape,
-    updateShape,
-    deleteShapes,
-    moveShapes,
-    bringToFront,
-    sendToBack,
-    setSelected,
-    setDrawing,
-    setPanning,
-    setDragging,
-    setResizing,
-    setRotating,
-    pushHistory,
-    undo,
-    redo,
-    loadDocument,
-    clearCanvas,
-    getDocument,
+    editor,
+    setCamera: editor.setCamera,
+    setTool: editor.setTool,
+    setToolStyle: editor.setToolStyle,
+    setComments: editor.setComments,
+    addShape: editor.addShape,
+    createAsset: editor.createAsset,
+    deleteAsset: editor.deleteAsset,
+    pruneUnusedAssets: editor.pruneUnusedAssets,
+    updateShape: editor.updateShape,
+    updateShapes: editor.updateShapes,
+    deleteShapes: editor.deleteShapes,
+    moveShapes: editor.moveShapes,
+    moveShapesWithSnapping: editor.moveShapesWithSnapping,
+    alignShapes: editor.alignShapes,
+    distributeShapes: editor.distributeShapes,
+    rotateShapesBy: editor.rotateShapesBy,
+    bringToFront: editor.bringToFront,
+    sendToBack: editor.sendToBack,
+    lockShapes: editor.lockShapes,
+    group: editor.group,
+    ungroup: editor.ungroup,
+    createBinding: editor.createBinding,
+    createPage: editor.createPage,
+    duplicatePage: editor.duplicatePage,
+    switchPage: editor.switchPage,
+    renamePage: editor.renamePage,
+    reorderPage: editor.reorderPage,
+    deletePage: editor.deletePage,
+    setPreferences: editor.setPreferences,
+    setSelected: editor.setSelected,
+    setHovered: editor.setHovered,
+    selectAll: editor.selectAll,
+    selectNone: editor.selectNone,
+    getShape: editor.getShape,
+    getSelectedShapes: editor.getSelectedShapes,
+    getCurrentPageShapes: editor.getCurrentPageShapes,
+    getHierarchyIds: editor.getHierarchyIds,
+    startEditing: editor.startEditing,
+    stopEditing: editor.stopEditing,
+    zoomIn: editor.zoomIn,
+    zoomOut: editor.zoomOut,
+    resetZoom: editor.resetZoom,
+    setDrawing: (value: boolean) => editor.setInteraction('isDrawing', value),
+    setPanning: (value: boolean) => editor.setInteraction('isPanning', value),
+    setDragging: (value: boolean) => editor.setInteraction('isDragging', value),
+    setResizing: (value: boolean, handle?: HandlePosition | null) => editor.setInteraction('isResizing', value, handle),
+    setRotating: (value: boolean) => editor.setInteraction('isRotating', value),
+    pushHistory: editor.pushHistory,
+    run: editor.run,
+    undo: editor.undo,
+    redo: editor.redo,
+    loadDocument: editor.loadDocument,
+    clearCanvas: editor.clearCanvas,
+    getDocument: editor.getDocument,
+    dispatch: () => undefined,
   };
 }
 
 export type CanvasEngine = ReturnType<typeof useCanvasEngine>;
+export type CanvasEngineState = CanvasEngine['state'];
+export type CanvasEngineActions = Pick<CanvasEngine, 'setCamera' | 'setTool' | 'setToolStyle' | 'setComments' | 'addShape' | 'updateShape' | 'deleteShapes' | 'setSelected'>;
+
+export type { CanvasDocument, CanvasShape, CommentPin, ToolStyle, ToolType };

@@ -132,6 +132,11 @@ function JournalPageContent() {
   });
   const preloadedRef = useRef(false);
   const moodParamAppliedRef = useRef(false);
+  const savedTimerRef = useRef<number | null>(null);
+
+  useEffect(() => () => {
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+  }, []);
 
   const { data: entries, isLoading } = useQuery({
     queryKey: ['journal'],
@@ -192,7 +197,11 @@ function JournalPageContent() {
     onSuccess: () => {
       invalidateJournal();
       setShowSaved(true);
-      window.setTimeout(() => setShowSaved(false), 1500);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = window.setTimeout(() => {
+        savedTimerRef.current = null;
+        setShowSaved(false);
+      }, 1500);
     },
   });
 
@@ -236,10 +245,10 @@ function JournalPageContent() {
     : null;
 
   return (
-    <div className="flex flex-col h-full w-full bg-background p-8 relative overflow-hidden">
+    <div className="flex min-h-full w-full flex-col bg-background p-4 relative overflow-y-auto sm:p-8 lg:h-full lg:overflow-hidden">
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-accent-green/5 rounded-full blur-3xl pointer-events-none"></div>
 
-      <header className="flex justify-between items-end mb-8 z-10 shrink-0">
+      <header className="mb-6 flex flex-col items-start gap-3 z-10 shrink-0 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight flex items-center gap-3">
             <BookOpen className="text-accent-blue" size={28} />

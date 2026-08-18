@@ -9,8 +9,12 @@ import rough from 'roughjs';
 import type {
   CanvasShape, PenShape, RectangleShape, EllipseShape,
   LineShape, ArrowShape, TextShape, FillStyleType, Point,
+  ImageShape, AssetRecord,
+  FrameShape,
+  HighlighterShape, MediaShape,
 } from './types';
 import { getShapeCenter, getStrokeDashArray } from './math';
+import { plainTextToRichText, richTextToHtml } from './richText';
 
 // ── Rough.js Generator (singleton) ──────────────────────────
 
@@ -20,6 +24,7 @@ interface ShapeRendererProps {
   shape: CanvasShape;
   isSelected: boolean;
   onPointerDown?: (e: React.PointerEvent, shapeId: string) => void;
+  assets?: Record<string, AssetRecord>;
 }
 
 // ── Rough Options Builder ───────────────────────────────────
@@ -170,6 +175,15 @@ function PenRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   );
 }
 
+function HighlighterRenderer({ shape, onPointerDown }: ShapeRendererProps) {
+  const highlighter = shape as HighlighterShape;
+  return (
+    <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
+      <path d={highlighter.pathData} fill="none" stroke={highlighter.color} strokeWidth={highlighter.strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={highlighter.opacity} style={{ mixBlendMode: 'multiply' }} />
+    </RotationWrapper>
+  );
+}
+
 function RectRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const rect = shape as RectangleShape;
   const w = Math.abs(rect.width);
@@ -244,12 +258,12 @@ function LineRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   );
 }
 
-function ArrowRenderer({ shape, onPointerDown }: ShapeRendererProps) {
+function ArrowRenderer({ shape, isSelected, onPointerDown }: ShapeRendererProps) {
   const arrow = shape as ArrowShape;
-  const x1 = arrow.x;
-  const y1 = arrow.y;
-  const x2 = arrow.x + arrow.width;
-  const y2 = arrow.y + arrow.height;
+  const x1 = arrow.start?.x ?? arrow.x;
+  const y1 = arrow.start?.y ?? arrow.y;
+  const x2 = arrow.end?.x ?? arrow.x + arrow.width;
+  const y2 = arrow.end?.y ?? arrow.y + arrow.height;
   const strokeDash = getStrokeDashArray(shape.strokeStyle);
 
   const headLen = 12 + arrow.strokeWidth * 2;
@@ -262,11 +276,17 @@ function ArrowRenderer({ shape, onPointerDown }: ShapeRendererProps) {
     let eAngle = 0;
 
     if (arrowStyle === 'elbow') {
-      const midX = x2;
-      const midY = y1;
-      dStr = `M ${x1} ${y1} L ${midX} ${midY} L ${x2} ${y2}`;
-      sAngle = Math.atan2(midY - y1, midX - x1);
-      eAngle = Math.atan2(y2 - midY, x2 - midX);
+      if (Math.abs(x2 - x1) >= Math.abs(y2 - y1)) {
+        const midX = (x1 + x2) / 2;
+        dStr = `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+        sAngle = Math.atan2(0, midX - x1 || 1);
+        eAngle = Math.atan2(0, x2 - midX || 1);
+      } else {
+        const midY = (y1 + y2) / 2;
+        dStr = `M ${x1} ${y1} L ${x1} ${midY} L ${x2} ${midY} L ${x2} ${y2}`;
+        sAngle = Math.atan2(midY - y1 || 1, 0);
+        eAngle = Math.atan2(y2 - midY || 1, 0);
+      }
     } else if (arrowStyle === 'curved') {
       const cx = (x1 + x2) / 2 - (y2 - y1) * 0.15;
       const cy = (y1 + y2) / 2 + (x2 - x1) * 0.15;
@@ -314,6 +334,17 @@ function ArrowRenderer({ shape, onPointerDown }: ShapeRendererProps) {
           opacity={arrow.opacity}
         />
       )}
+      {arrow.label && (
+        <foreignObject x={(x1 + x2) / 2 - 60} y={(y1 + y2) / 2 - 16} width={120} height={32} pointerEvents="none">
+          <div style={{ color: arrow.color, fontSize: 12, textAlign: 'center', background: 'var(--surface)', borderRadius: 4, padding: '2px 4px', whiteSpace: 'nowrap', overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: richTextToHtml(arrow.label) }} />
+        </foreignObject>
+      )}
+      {isSelected && (
+        <>
+          <circle cx={x1} cy={y1} r={4} fill="#ffffff" stroke={arrow.color} strokeWidth={1.5} pointerEvents="none" />
+          <circle cx={x2} cy={y2} r={4} fill="#ffffff" stroke={arrow.color} strokeWidth={1.5} pointerEvents="none" />
+        </>
+      )}
     </RotationWrapper>
   );
 }
@@ -322,6 +353,7 @@ function TextRenderer({ shape, onPointerDown }: ShapeRendererProps) {
   const textShape = shape as TextShape;
   const w = Math.max(textShape.width, 20);
   const h = Math.max(textShape.height, textShape.fontSize + 8);
+  const html = richTextToHtml(textShape.richText ?? plainTextToRichText(textShape.text));
 
   return (
     <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
@@ -348,6 +380,12 @@ function TextRenderer({ shape, onPointerDown }: ShapeRendererProps) {
             color: textShape.color,
             fontSize: textShape.fontSize,
             fontFamily: textShape.fontFamily || 'Inter, system-ui, sans-serif',
+            fontWeight: textShape.fontWeight === 'bold' ? 700 : textShape.fontWeight === 'semibold' ? 600 : textShape.fontWeight === 'medium' ? 500 : 400,
+            fontStyle: textShape.fontStyle ?? 'normal',
+            textAlign: textShape.textAlign ?? 'left',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: textShape.verticalAlign === 'middle' ? 'center' : textShape.verticalAlign === 'bottom' ? 'flex-end' : 'flex-start',
             opacity: textShape.opacity,
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
@@ -357,9 +395,36 @@ function TextRenderer({ shape, onPointerDown }: ShapeRendererProps) {
             userSelect: 'none',
           }}
         >
-          {textShape.text}
+          <div dangerouslySetInnerHTML={{ __html: html }} />
         </div>
       </foreignObject>
+    </RotationWrapper>
+  );
+}
+
+function FrameRenderer({ shape, onPointerDown }: ShapeRendererProps) {
+  const frame = shape as FrameShape;
+  const w = Math.max(1, Math.abs(frame.width));
+  const h = Math.max(1, Math.abs(frame.height));
+  const strokeDash = getStrokeDashArray(frame.strokeStyle || 'dashed');
+  return (
+    <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
+      <rect
+        x={frame.x}
+        y={frame.y}
+        width={w}
+        height={h}
+        fill={frame.fillStyle !== 'none' && frame.fill !== 'transparent' ? frame.fill : 'transparent'}
+        stroke={frame.color}
+        strokeWidth={frame.strokeWidth}
+        strokeDasharray={strokeDash}
+        opacity={frame.opacity}
+      />
+      {frame.title && (
+        <text x={frame.x + 8} y={frame.y - 8} fill={frame.color} fontSize={12} fontWeight={600} style={{ pointerEvents: 'none', userSelect: 'none' }}>
+          {frame.title}
+        </text>
+      )}
     </RotationWrapper>
   );
 }
@@ -402,6 +467,19 @@ function PolygonRenderer({ shape, onPointerDown }: ShapeRendererProps) {
         for (let i = 0; i < 6; i++) {
           const angle = (i * Math.PI) / 3 - Math.PI / 2;
           pts.push([cx + rx * Math.cos(angle), cy + ry * Math.sin(angle)]);
+        }
+        break;
+      case 'octagon':
+        for (let i = 0; i < 8; i++) {
+          const angle = (i * Math.PI) / 4 - Math.PI / 8;
+          pts.push([cx + rx * Math.cos(angle), cy + ry * Math.sin(angle)]);
+        }
+        break;
+      case 'cloud':
+        for (let i = 0; i < 12; i++) {
+          const angle = (i * Math.PI * 2) / 12;
+          const radius = i % 2 === 0 ? 1 : 0.76;
+          pts.push([cx + rx * radius * Math.cos(angle), cy + ry * radius * Math.sin(angle)]);
         }
         break;
       case 'parallelogram':
@@ -541,12 +619,56 @@ function StickyNoteRenderer({ shape, isSelected, onPointerDown }: ShapeRendererP
   );
 }
 
+function ImageRenderer({ shape, assets, onPointerDown }: ShapeRendererProps) {
+  const image = shape as ImageShape;
+  const asset = assets?.[image.assetId];
+  if (!asset?.src) return null;
+  return (
+    <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
+      <image
+        href={asset.src}
+        x={image.x}
+        y={image.y}
+        width={Math.max(1, image.width)}
+        height={Math.max(1, image.height)}
+        preserveAspectRatio={image.fit === 'stretch' ? 'none' : image.fit === 'cover' ? 'xMidYMid slice' : 'xMidYMid meet'}
+        opacity={image.opacity}
+        style={{ pointerEvents: 'none' }}
+      />
+      <rect x={image.x} y={image.y} width={image.width} height={image.height} fill="transparent" stroke={image.color} strokeWidth={image.strokeWidth} strokeDasharray={getStrokeDashArray(image.strokeStyle)} opacity={image.opacity} />
+    </RotationWrapper>
+  );
+}
+
+function MediaRenderer({ shape, assets, onPointerDown }: ShapeRendererProps) {
+  const media = shape as MediaShape;
+  const asset = assets?.[media.assetId];
+  if (media.type === 'video' && asset?.src) {
+    return (
+      <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
+        <foreignObject x={media.x} y={media.y} width={Math.max(1, media.width)} height={Math.max(1, media.height)}>
+          <video src={asset.src} controls muted playsInline style={{ width: '100%', height: '100%', objectFit: media.fit === 'cover' ? 'cover' : 'contain', pointerEvents: 'auto' }} />
+        </foreignObject>
+      </RotationWrapper>
+    );
+  }
+  return (
+    <RotationWrapper shape={shape} onPointerDown={onPointerDown}>
+      <rect x={media.x} y={media.y} width={Math.max(1, media.width)} height={Math.max(1, media.height)} rx={8} fill={media.fill !== 'transparent' ? media.fill : 'var(--surface)'} stroke={media.color} strokeWidth={media.strokeWidth} opacity={media.opacity} />
+      <text x={media.x + 14} y={media.y + 28} fill={media.color} fontSize={14} fontWeight={600} style={{ pointerEvents: 'none' }}>{asset?.name ?? (media.type === 'bookmark' ? 'Bookmark preview' : 'Embedded content')}</text>
+      {asset?.src && <text x={media.x + 14} y={media.y + 50} fill={media.color} fontSize={11} opacity={0.75} style={{ pointerEvents: 'none' }}>{asset.src.slice(0, 48)}</text>}
+    </RotationWrapper>
+  );
+}
+
 // ── Main Shape Dispatcher ───────────────────────────────────
 
 export function ShapeRenderer(props: ShapeRendererProps) {
   switch (props.shape.type) {
     case 'pen':
       return <PenRenderer {...props} />;
+    case 'highlighter':
+      return <HighlighterRenderer {...props} />;
     case 'rectangle':
       return <RectRenderer {...props} />;
     case 'ellipse':
@@ -563,12 +685,22 @@ export function ShapeRenderer(props: ShapeRendererProps) {
     case 'triangle':
     case 'star':
     case 'hexagon':
+    case 'octagon':
+    case 'cloud':
     case 'parallelogram':
     case 'trapezoid':
     case 'callout':
       return <PolygonRenderer {...props} />;
+    case 'frame':
+      return <FrameRenderer {...props} />;
     case 'cylinder':
       return <CylinderRenderer {...props} />;
+    case 'image':
+      return <ImageRenderer {...props} />;
+    case 'video':
+    case 'bookmark':
+    case 'embed':
+      return <MediaRenderer {...props} />;
     default:
       return null;
   }

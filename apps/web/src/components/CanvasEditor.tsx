@@ -9,19 +9,39 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { ChevronLeft, Loader2, CloudLightning, Check, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
+import * as Y from 'yjs';
 import { io, Socket } from 'socket.io-client';
 import api from '@/lib/api';
+import { useAuth } from './AuthProvider';
 import { InfiniteCanvas, useCanvasEngine } from '@/lib/canvas';
-import type { CanvasDocument } from '@/lib/canvas';
+import type { CanvasDocument, CommentPin, RoomUser } from '@/lib/canvas';
+import { clearLocalDocumentUpdate, enqueueLocalDocumentUpdate, loadLocalDocument, saveLocalDocument, takeLocalDocumentUpdate } from '@/lib/canvas';
+import { applyCanvasSnapshot, readCanvasSnapshot } from '@/lib/collaboration/canvasYjs';
 
 function debounce(func: (data: CanvasDocument) => void, wait: number) {
   let timeout: NodeJS.Timeout | null = null;
+  let pendingData: CanvasDocument | null = null;
   const debounced = (data: CanvasDocument) => {
     if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(data), wait);
+    pendingData = data;
+    timeout = setTimeout(() => {
+      timeout = null;
+      const nextData = pendingData;
+      pendingData = null;
+      if (nextData) func(nextData);
+    }, wait);
   };
   debounced.cancel = () => {
     if (timeout) clearTimeout(timeout);
+    timeout = null;
+    pendingData = null;
+  };
+  debounced.flush = () => {
+    if (timeout) clearTimeout(timeout);
+    timeout = null;
+    const nextData = pendingData;
+    pendingData = null;
+    if (nextData) func(nextData);
   };
   return debounced;
 }
@@ -32,172 +52,259 @@ type DrawingDetail = {
   documentData: unknown;
 };
 
+function encodeYjsUpdate(update: Uint8Array) {
+  let binary = '';
+  update.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary);
+}
+
+function decodeYjsUpdate(update: string) {
+  const binary = atob(update);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function mergeComments(current: CommentPin[], incoming: CommentPin[]) {
+  const byId = new Map(current.map((comment) => [comment.id, comment]));
+  incoming.forEach((comment) => byId.set(comment.id, comment));
+  return Array.from(byId.values()).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+function commentsFromDocument(documentData: unknown): CommentPin[] {
+  if (!documentData || typeof documentData !== 'object') return [];
+  const comments = (documentData as { comments?: unknown }).comments;
+  return Array.isArray(comments) ? comments as CommentPin[] : [];
+}
+
 function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: DrawingDetail; workspaceId?: string }) {
   const router = useRouter();
+  const { user } = useAuth();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
-  const [activeUsers, setActiveUsers] = useState<{ socketId: string; userId: string; userName: string; userColor: string }[]>([]);
+  const [activeUsers, setActiveUsers] = useState<RoomUser[]>([]);
   const [remoteCursors, setRemoteCursors] = useState<Record<string, { userId: string; x: number; y: number; name: string; color: string }>>({});
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<CommentPin[]>(() => workspaceId ? [] : commentsFromDocument(drawing.documentData));
   const socketRef = useRef<Socket | null>(null);
+  const lastCursorEmitAtRef = useRef(0);
+  const pendingLocalDocumentRef = useRef(false);
+  const latestLocalDocumentRef = useRef<CanvasDocument | null>(null);
+  const latestRemoteRevisionRef = useRef(0);
+  const ydocRef = useRef<Y.Doc | null>(null);
+  const applyingRemoteRef = useRef(false);
+  const collabJoinedRef = useRef(false);
+  const localPersistenceKey = `canvas:${id}`;
 
-  // Fetch persistent canvas comments from database
-  useQuery({
+  // Fetch persistent canvas comments from database.
+  const commentsQuery = useQuery({
     queryKey: ['co-canvas-comments', workspaceId, id],
     queryFn: async () => {
-      if (!workspaceId) return [];
+      if (!workspaceId) return [] as CommentPin[];
       const { data } = await api.get(`/workspaces/${workspaceId}/canvases/${id}/comments`);
-      const fetched = data.data || [];
-      setComments(fetched);
-      return fetched;
+      return (data.data || []) as CommentPin[];
     },
     enabled: !!workspaceId,
   });
-
+  const visibleComments = workspaceId ? mergeComments(commentsQuery.data ?? [], comments) : comments;
   // Initialize the custom canvas engine with loaded data
   const engine = useCanvasEngine(drawing.documentData as CanvasDocument | undefined);
   const { loadDocument } = engine;
+
+  useEffect(() => {
+    const saved = drawing.documentData as CanvasDocument | undefined;
+    if (saved && Object.keys(saved.shapes ?? {}).length > 0) return;
+    void loadLocalDocument(`canvas:${id}`).then((local) => {
+      if (local) {
+        loadDocument(local);
+        if (!workspaceId) setComments(local.comments ?? []);
+      }
+    }).catch(() => undefined);
+  }, [drawing.documentData, id, loadDocument, workspaceId]);
 
   const saveMutation = useMutation({
     mutationFn: async (documentData: CanvasDocument) => {
       await api.patch(workspaceId ? `/workspaces/${workspaceId}/canvases/${id}` : `/drawings/${id}`, { documentData });
     },
-    onSuccess: () => {
+    onSuccess: (_data, savedDocument) => {
       setSaveStatus('saved');
+      if (latestLocalDocumentRef.current === savedDocument) {
+        pendingLocalDocumentRef.current = false;
+        void clearLocalDocumentUpdate(localPersistenceKey).catch(() => undefined);
+      }
     },
     onError: () => {
       setSaveStatus('error');
     },
   });
+  const saveDocument = saveMutation.mutate;
+
+  useEffect(() => {
+    // Collaborative documents are replayed by the socket connect handler so
+    // the update is broadcast after the room join has been accepted.
+    if (workspaceId) return;
+    void takeLocalDocumentUpdate(localPersistenceKey).then((queued) => {
+      if (!queued) return;
+      pendingLocalDocumentRef.current = true;
+      latestLocalDocumentRef.current = queued;
+      loadDocument(queued);
+      saveDocument(queued);
+    }).catch(() => undefined);
+  }, [loadDocument, localPersistenceKey, saveDocument, workspaceId]);
 
   // Debounced save
   const debouncedSave = useMemo(() => debounce((data: CanvasDocument) => {
       setSaveStatus('saving');
-      saveMutation.mutate(data);
-    }, 2000), [saveMutation]);
+      latestLocalDocumentRef.current = data;
+      saveDocument(data);
+    }, 2000), [saveDocument]);
 
   useEffect(() => {
-    return () => debouncedSave.cancel();
+    return () => {
+      debouncedSave.flush();
+      debouncedSave.cancel();
+    };
   }, [debouncedSave]);
 
   useEffect(() => {
     if (!workspaceId) return;
     const token = localStorage.getItem('accessToken');
-    const userStr = localStorage.getItem('user');
-    let userName = 'Collaborator';
-    let userColor = '#3b82f6';
-    if (userStr) {
-      try {
-        const u = JSON.parse(userStr);
-        if (u.name) userName = u.name;
-      } catch {}
-    }
-
+    const ydoc = new Y.Doc();
+    ydocRef.current = ydoc;
     const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:8000', { auth: { token } });
-    socket.emit('co-canvas:join', { workspaceId, canvasId: id, userName, userColor });
+    const handleYUpdate = (update: Uint8Array, origin: unknown) => {
+      if (origin === 'remote' || origin === 'sync') return;
+      if (socket.connected && collabJoinedRef.current) {
+        socket.emit('collab:update', { workspaceId, resourceType: 'canvas', resourceId: id, update: encodeYjsUpdate(update) });
+        setSaveStatus('saving');
+      }
+    };
+    ydoc.on('update', handleYUpdate);
 
-    // Flush offline queued actions on reconnect
-    socket.on('connect', () => {
-      try {
-        const pendingQueue = sessionStorage.getItem(`offline-canvas-actions-${id}`);
-        if (pendingQueue) {
-          const actions: any[] = JSON.parse(pendingQueue);
-          actions.forEach((act) => socket.emit(act.event, act.data));
-          sessionStorage.removeItem(`offline-canvas-actions-${id}`);
-        }
-      } catch {}
+    socket.on('collab:sync', ({ update, revision = 0 }: { update: string; revision?: number }) => {
+      if (typeof update !== 'string') return;
+      latestRemoteRevisionRef.current = revision;
+      Y.applyUpdate(ydoc, decodeYjsUpdate(update), 'sync');
+      applyingRemoteRef.current = true;
+      loadDocument(readCanvasSnapshot(ydoc));
+      applyingRemoteRef.current = false;
+      collabJoinedRef.current = true;
+      void takeLocalDocumentUpdate(localPersistenceKey).then((queued) => {
+        if (!queued) return;
+        applyCanvasSnapshot(ydoc, queued, 'local');
+        void clearLocalDocumentUpdate(localPersistenceKey).catch(() => undefined);
+      }).catch(() => undefined);
+      setSaveStatus('saved');
     });
-
-    socket.on('co-canvas:updated', ({ documentData }: { documentData: CanvasDocument }) => loadDocument(documentData));
-    socket.on('co-canvas:presence', (users: { socketId: string; userId: string; userName: string; userColor: string }[]) => setActiveUsers(users));
-    socket.on('co-canvas:cursor-moved', (cursor: { userId: string; x: number; y: number; name: string; color: string }) => {
-      setRemoteCursors((prev) => ({ ...prev, [cursor.userId]: cursor }));
+    socket.on('collab:update', ({ update, revision = 0 }: { update: string; revision?: number }) => {
+      if (typeof update !== 'string' || revision < latestRemoteRevisionRef.current) return;
+      latestRemoteRevisionRef.current = revision;
+      Y.applyUpdate(ydoc, decodeYjsUpdate(update), 'remote');
+      applyingRemoteRef.current = true;
+      loadDocument(readCanvasSnapshot(ydoc));
+      applyingRemoteRef.current = false;
+      setSaveStatus('saved');
     });
-    socket.on('co-canvas:comment-added', (comment: any) => {
+    socket.on('collab:awareness', (cursor: { userId: string; state?: { x?: number; y?: number }; displayName?: string; color?: string }) => {
+      if (cursor.state && typeof cursor.state.x === 'number' && typeof cursor.state.y === 'number') {
+        setRemoteCursors((prev) => ({ ...prev, [cursor.userId]: { userId: cursor.userId, x: cursor.state!.x!, y: cursor.state!.y!, name: cursor.displayName ?? 'Collaborator', color: cursor.color ?? '#3b82f6' } }));
+      }
+    });
+    socket.on('collab:presence', (users: RoomUser[]) => setActiveUsers(users));
+    socket.on('collab:comment', (comment: CommentPin) => {
       setComments((prev) => {
-        if (prev.some((c) => c.id === comment.id)) return prev;
-        return [...prev, comment];
+        const existing = prev.findIndex((current) => current.id === comment.id);
+        if (existing === -1) return [...prev, comment].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        return prev.map((current, index) => index === existing ? { ...current, ...comment } : current);
       });
     });
-    socket.on('co-canvas:comment-resolved-toggled', ({ commentId }: { commentId: string }) => {
-      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
+    socket.on('collab:comment-resolve', (comment: CommentPin) => {
+      setComments((prev) => prev.map((current) => current.id === comment.id ? { ...current, ...comment } : current));
     });
+
+    const join = () => socket.emit('collab:join', { workspaceId, resourceType: 'canvas', resourceId: id });
+    socket.on('connect', join);
+    if (socket.connected) join();
 
     socketRef.current = socket;
     return () => {
-      socket.off('connect');
-      socket.off('co-canvas:updated');
-      socket.off('co-canvas:presence');
-      socket.off('co-canvas:cursor-moved');
-      socket.off('co-canvas:comment-added');
-      socket.off('co-canvas:comment-resolved-toggled');
-      socket.emit('co-canvas:leave', { workspaceId, canvasId: id });
+      socket.off('connect', join);
+      socket.off('collab:sync');
+      socket.off('collab:update');
+      socket.off('collab:awareness');
+      socket.off('collab:presence');
+      socket.off('collab:comment');
+      socket.off('collab:comment-resolve');
+      socket.emit('collab:leave', { workspaceId, resourceType: 'canvas', resourceId: id });
       socket.disconnect();
+      ydoc.off('update', handleYUpdate);
+      ydoc.destroy();
+      ydocRef.current = null;
+      collabJoinedRef.current = false;
       socketRef.current = null;
+      lastCursorEmitAtRef.current = 0;
+      setRemoteCursors({});
     };
-  }, [id, loadDocument, workspaceId]);
+  }, [id, loadDocument, localPersistenceKey, workspaceId]);
 
   // Callback when canvas content changes
   const handleChanged = useCallback(() => {
     const doc = engine.getDocument();
-    debouncedSave(doc);
-    if (workspaceId) socketRef.current?.emit('co-canvas:update', { workspaceId, canvasId: id, documentData: doc });
-  }, [engine, debouncedSave, id, workspaceId]);
+    pendingLocalDocumentRef.current = true;
+    latestLocalDocumentRef.current = doc;
+    if (!workspaceId) debouncedSave(doc);
+    void saveLocalDocument(localPersistenceKey, doc).catch(() => undefined);
+    void enqueueLocalDocumentUpdate(localPersistenceKey, doc).catch(() => undefined);
+    if (workspaceId && !applyingRemoteRef.current && ydocRef.current) {
+      applyCanvasSnapshot(ydocRef.current, doc, 'local');
+    }
+  }, [engine, debouncedSave, id, localPersistenceKey, workspaceId]);
 
   const handlePointerMoveWorld = useCallback(({ x, y }: { x: number; y: number }) => {
     if (!workspaceId || !socketRef.current) return;
-    const userStr = localStorage.getItem('user');
-    let name = 'Collaborator';
-    if (userStr) {
-      try {
-        const u = JSON.parse(userStr);
-        if (u.name) name = u.name;
-      } catch {}
-    }
-    socketRef.current.emit('co-canvas:cursor', {
+    const now = performance.now();
+    if (now - lastCursorEmitAtRef.current < 33) return;
+    lastCursorEmitAtRef.current = now;
+    socketRef.current.emit('collab:awareness', {
       workspaceId,
-      canvasId: id,
-      x,
-      y,
-      name,
-      color: '#3b82f6',
+      resourceType: 'canvas',
+      resourceId: id,
+      state: { x, y },
     });
   }, [workspaceId, id]);
 
-  const handleAddComment = useCallback(async (pt: { x: number; y: number }, content: string) => {
-    if (!workspaceId) return;
-    try {
-      const { data } = await api.post(`/workspaces/${workspaceId}/canvases/${id}/comments`, {
-        x: pt.x,
-        y: pt.y,
-        content,
-      });
-      const newComment = data.data;
-      setComments((prev) => [...prev, newComment]);
-
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('co-canvas:comment-add', { workspaceId, canvasId: id, comment: newComment });
-      } else {
-        // Queue offline
-        const pendingQueue = JSON.parse(sessionStorage.getItem(`offline-canvas-actions-${id}`) || '[]');
-        pendingQueue.push({ event: 'co-canvas:comment-add', data: { workspaceId, canvasId: id, comment: newComment } });
-        sessionStorage.setItem(`offline-canvas-actions-${id}`, JSON.stringify(pendingQueue));
-      }
-    } catch (e) {
-      console.error('Failed to create comment', e);
+  const handleAddComment = useCallback((pt: { x: number; y: number }, content: string) => {
+    if (workspaceId) {
+      socketRef.current?.emit('collab:comment', { workspaceId, resourceType: 'canvas', resourceId: id, comment: { x: pt.x, y: pt.y, content } });
+      return;
     }
-  }, [workspaceId, id]);
 
-  const handleToggleResolveComment = useCallback(async (commentId: string) => {
-    setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, isResolved: !c.isResolved } : c)));
-    try {
-      await api.patch(`/comments/${commentId}/toggle-resolve`);
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('co-canvas:comment-toggle-resolve', { workspaceId, canvasId: id, commentId });
-      }
-    } catch (e) {
-      console.error('Failed to toggle comment resolution', e);
+    const newComment: CommentPin = {
+      id: crypto.randomUUID(),
+      canvasId: id,
+      userId: user?.id ?? 'me',
+      userName: user?.displayName ?? 'You',
+      avatarUrl: user?.avatarUrl ?? null,
+      x: pt.x,
+      y: pt.y,
+      content,
+      isResolved: false,
+      createdAt: new Date().toISOString(),
+    };
+    const nextComments = [...comments, newComment];
+    engine.setComments(nextComments);
+    setComments(nextComments);
+    handleChanged();
+  }, [comments, engine, handleChanged, id, user, workspaceId]);
+
+  const handleToggleResolveComment = useCallback((commentId: string) => {
+    const comment = visibleComments.find((current) => current.id === commentId);
+    if (!comment) return;
+    if (!workspaceId) {
+      const nextComments = comments.map((current) => current.id === commentId ? { ...current, isResolved: !current.isResolved } : current);
+      engine.setComments(nextComments);
+      setComments(nextComments);
+      handleChanged();
+      return;
     }
-  }, [workspaceId, id]);
+    socketRef.current?.emit('collab:comment-resolve', { workspaceId, resourceType: 'canvas', resourceId: id, commentId, isResolved: !comment.isResolved });
+  }, [comments, engine, handleChanged, id, visibleComments, workspaceId]);
 
   return (
     <div className="w-full h-screen flex flex-col relative bg-background overflow-hidden">
@@ -281,7 +388,8 @@ function CanvasEditorInner({ id, drawing, workspaceId }: { id: string; drawing: 
           onChanged={handleChanged}
           onPointerMoveWorld={handlePointerMoveWorld}
           remoteCursors={remoteCursors}
-          comments={comments}
+          comments={visibleComments}
+          commentAuthor={{ name: user?.displayName ?? 'You', avatarUrl: user?.avatarUrl ?? null }}
           onAddComment={handleAddComment}
           onToggleResolveComment={handleToggleResolveComment}
         />

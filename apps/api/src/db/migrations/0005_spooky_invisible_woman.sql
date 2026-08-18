@@ -1,0 +1,2 @@
+ALTER TABLE "kanban_cards" ADD COLUMN "assignee_id" uuid;--> statement-breakpoint
+ALTER TABLE "kanban_cards" ADD CONSTRAINT "kanban_cards_assignee_id_users_id_fk" FOREIGN KEY ("assignee_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;

@@ -50,12 +50,15 @@ export const me = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { user: req.user } });
 });
 
-export const forgotPassword = asyncHandler(async (_req, res) => {
+export const forgotPassword = asyncHandler(async (req, res) => {
+  await authService.requestPasswordReset(req.body.email);
   res.json({ success: true, data: { queued: true } });
 });
 
-export const resetPassword = asyncHandler(async (_req, res) => {
-  res.status(501).json({ success: false, error: { code: 'NOT_IMPLEMENTED', message: 'Password reset email flow is not wired yet' } });
+export const resetPassword = asyncHandler(async (req, res) => {
+  await authService.resetPassword(req.body.token, req.body.password);
+  clearRefreshCookie(res);
+  res.json({ success: true, data: { passwordReset: true } });
 });
 
 export const changePassword = asyncHandler(async (req, res) => {

@@ -25,6 +25,7 @@ export const createCardSchema = z.object({
   dueDate: z.coerce.date().nullable().optional(),
   sortOrder: z.number().int().optional(),
   noteId: z.string().uuid().nullable().optional(),
+  assigneeId: z.string().uuid().nullable().optional(),
 });
 
 export const updateCardSchema = createCardSchema.partial().extend({

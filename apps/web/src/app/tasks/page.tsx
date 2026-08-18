@@ -158,21 +158,21 @@ export default function TasksPage() {
   };
 
   return (
-    <div className="flex h-full w-full bg-background relative overflow-hidden">
+    <div className="flex min-h-full w-full bg-background relative overflow-y-auto lg:h-full lg:overflow-hidden">
       {/* Ambient glowing blobs */}
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent-blue/5 rounded-full blur-3xl pointer-events-none"></div>
       <div className="absolute bottom-1/4 right-0 w-[500px] h-[500px] bg-accent-green/5 rounded-full blur-3xl pointer-events-none"></div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col p-12 overflow-y-auto z-10 relative">
+      <div className="flex-1 flex flex-col p-4 overflow-y-auto z-10 relative sm:p-12">
         <div className="max-w-4xl mx-auto w-full">
           
-          <header className="flex justify-between items-end mb-12">
+          <header className="mb-8 flex flex-col items-start gap-4 sm:mb-12 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h1 className="text-4xl font-bold text-foreground tracking-tight mb-2">My Tasks</h1>
               <p className="text-muted text-lg">You have <span className="text-accent-blue font-semibold">{activeTasks.length}</span> active tasks.</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
               <button 
                 onClick={() => setSmartSort(!smartSort)}
                 className={`px-4 py-2.5 rounded-xl font-medium transition-colors flex items-center gap-2 border ${smartSort ? 'bg-accent-blue/10 text-accent-blue border-accent-blue/30' : 'bg-surface text-foreground border-border hover:bg-surface-hover'}`}
@@ -195,7 +195,7 @@ export default function TasksPage() {
           </header>
 
           {/* Quick Add Input */}
-          <div className="glass bg-surface/50 border border-border p-2 rounded-2xl mb-12 shadow-sm flex items-center focus-within:border-accent-blue/50 focus-within:ring-1 focus-within:ring-accent-blue/50 transition-all">
+          <div className="glass bg-surface/50 border border-border p-2 rounded-2xl mb-8 shadow-sm flex flex-wrap items-center focus-within:border-accent-blue/50 focus-within:ring-1 focus-within:ring-accent-blue/50 transition-all sm:mb-12">
             <div className="p-3 text-muted">
               {createMutation.isPending ? <Loader2 size={20} className="animate-spin text-accent-blue" /> : <Plus size={20} />}
             </div>
@@ -206,9 +206,9 @@ export default function TasksPage() {
               onKeyDown={handleQuickAdd}
               disabled={createMutation.isPending}
               placeholder="What needs to be done? (Press Enter to save)" 
-              className="flex-1 bg-transparent border-none outline-none text-foreground placeholder:text-muted/50 text-lg px-2 disabled:opacity-50"
+              className="min-w-0 flex-1 basis-[calc(100%-3.5rem)] bg-transparent border-none outline-none text-foreground placeholder:text-muted/50 text-base px-2 disabled:opacity-50 sm:text-lg"
             />
-            <div className="flex items-center gap-2 pr-2">
+            <div className="flex w-full items-center justify-end gap-2 pr-2 sm:w-auto">
               <div className="relative group">
                 <input 
                   type="date" 

@@ -16,3 +16,7 @@ export * from './routines.js';
 export * from './badges.js';
 export * from './workspaces.js';
 export * from './co-canvases.js';
+export * from './collaboration.js';
+export * from './notifications.js';
+export * from './passwordResetTokens.js';
+export * from './integrations.js';

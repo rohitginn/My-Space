@@ -160,17 +160,17 @@ export default function CalendarPage() {
   const todayStr = `${todayDateObj.getFullYear()}-${String(todayDateObj.getMonth() + 1).padStart(2, '0')}-${String(todayDateObj.getDate()).padStart(2, '0')}`;
 
   return (
-    <div className="flex flex-col h-full w-full bg-background relative overflow-hidden p-8">
+    <div className="flex min-h-full w-full flex-col bg-background relative overflow-y-auto p-4 sm:p-8 lg:h-full lg:overflow-hidden">
       <div className="absolute top-0 right-1/3 w-[600px] h-[600px] bg-purple-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-      <header className="flex justify-between items-end mb-8 shrink-0 z-10">
+      <header className="mb-6 flex flex-col items-start gap-4 shrink-0 z-10 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight flex items-center gap-4">
             {monthName}
           </h1>
           <p className="text-muted mt-2">Manage your schedule and upcoming events.</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-4">
           <div className="flex items-center bg-surface border border-border rounded-xl p-1 shadow-sm">
             <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-surface-hover text-muted hover:text-foreground transition-colors">
               <ChevronLeft size={20} />
@@ -203,77 +203,78 @@ export default function CalendarPage() {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col bg-surface-glass border border-border rounded-2xl overflow-hidden shadow-sm backdrop-blur-md z-10">
-        <div className="grid grid-cols-7 border-b border-border bg-surface/50">
-          {DAYS_OF_WEEK.map(day => (
-            <div key={day} className="py-3 text-center text-xs font-semibold text-muted uppercase tracking-wider">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        <div className="flex-1 grid grid-cols-7 grid-rows-6">
-          {isLoading && !eventsData ? (
-            <div className="col-span-7 row-span-6 flex items-center justify-center text-muted">
-              <Loader2 size={32} className="animate-spin mr-3" />
-              Loading Events...
-            </div>
-          ) : (
-            gridCells.map((cell, i) => {
-              const cellDateStr = `${cell.dateObj.getFullYear()}-${String(cell.dateObj.getMonth() + 1).padStart(2, '0')}-${String(cell.dateObj.getDate()).padStart(2, '0')}`;
-              const isToday = cellDateStr === todayStr;
-              return (
-                <div 
-                  key={i} 
-                  className={`border-b border-r border-border/50 p-2 min-h-24 hover:bg-surface-hover transition-colors group ${
-                    !cell.isCurrentMonth ? 'bg-surface/30 opacity-50' : ''
-                  } ${i % 7 === 6 ? 'border-r-0' : ''} ${i >= 35 ? 'border-b-0' : ''}`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${
-                      isToday ? 'bg-accent-blue text-white shadow-md shadow-accent-blue/20' : 'text-foreground'
-                    }`}>
-                      {cell.dateObj.getDate()}
-                    </span>
-                  </div>
-                  
-                  <div className="space-y-1">
-                    {cell.events.map(event => (
-                      <div 
-                        key={event.id}
-                        className="relative group/event"
-                      >
-                        <div
-                          onClick={() => {
-                            if (!event.readOnly) {
-                              setEventModal({isOpen: true, isEdit: true, data: {...event, startTime: event.startTime.slice(0, 16), endTime: event.endTime.slice(0, 16)}})
-                            }
-                          }}
-                          className={`px-2 py-1 rounded text-xs font-medium border truncate ${!event.readOnly ? 'cursor-pointer' : ''}`}
-                          style={{ 
-                            backgroundColor: `${event.color || '#8b5cf6'}20`, 
-                            color: event.color || '#8b5cf6',
-                            borderColor: `${event.color || '#8b5cf6'}30`
-                          }}
-                          title={event.readOnly ? 'Synced Task (Edit in Tasks/Projects)' : ''}
-                        >
-                          {event.isAllDay ? 'All Day' : new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(event.startTime))} {event.title}
-                        </div>
-                        {!event.readOnly && (
-                          <button 
-                            onClick={async (e) => { e.stopPropagation(); if(await confirm('Delete event?')) deleteEventMutation.mutate(event.id); }}
-                            className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/event:opacity-100 p-1 text-red-500 hover:bg-red-500/20 rounded bg-background shadow"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+      <div className="flex min-h-[620px] flex-1 flex-col bg-surface-glass border border-border rounded-2xl overflow-hidden shadow-sm backdrop-blur-md z-10">
+        <div className="flex-1 overflow-x-auto overflow-y-hidden">
+          <div className="flex h-full min-w-[680px] flex-col">
+            <div className="grid grid-cols-7 border-b border-border bg-surface/50">
+              {DAYS_OF_WEEK.map(day => (
+                <div key={day} className="py-3 text-center text-xs font-semibold text-muted uppercase tracking-wider">
+                  {day}
                 </div>
-              );
-            })
-          )}
+              ))}
+            </div>
+
+            <div className="flex-1 grid grid-cols-7 grid-rows-6">
+              {isLoading && !eventsData ? (
+                <div className="col-span-7 row-span-6 flex items-center justify-center text-muted">
+                  <Loader2 size={32} className="animate-spin mr-3" />
+                  Loading Events...
+                </div>
+              ) : (
+                gridCells.map((cell, i) => {
+                  const cellDateStr = `${cell.dateObj.getFullYear()}-${String(cell.dateObj.getMonth() + 1).padStart(2, '0')}-${String(cell.dateObj.getDate()).padStart(2, '0')}`;
+                  const isToday = cellDateStr === todayStr;
+                  return (
+                    <div
+                      key={i}
+                      className={`border-b border-r border-border/50 p-2 min-h-24 hover:bg-surface-hover transition-colors group ${
+                        !cell.isCurrentMonth ? 'bg-surface/30 opacity-50' : ''
+                      } ${i % 7 === 6 ? 'border-r-0' : ''} ${i >= 35 ? 'border-b-0' : ''}`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-medium ${
+                          isToday ? 'bg-accent-blue text-white shadow-md shadow-accent-blue/20' : 'text-foreground'
+                        }`}>
+                          {cell.dateObj.getDate()}
+                        </span>
+                      </div>
+
+                      <div className="space-y-1">
+                        {cell.events.map(event => (
+                          <div key={event.id} className="relative group/event">
+                            <div
+                              onClick={() => {
+                                if (!event.readOnly) {
+                                  setEventModal({isOpen: true, isEdit: true, data: {...event, startTime: event.startTime.slice(0, 16), endTime: event.endTime.slice(0, 16)}})
+                                }
+                              }}
+                              className={`px-2 py-1 rounded text-xs font-medium border truncate ${!event.readOnly ? 'cursor-pointer' : ''}`}
+                              style={{
+                                backgroundColor: `${event.color || '#8b5cf6'}20`,
+                                color: event.color || '#8b5cf6',
+                                borderColor: `${event.color || '#8b5cf6'}30`
+                              }}
+                              title={event.readOnly ? 'Synced Task (Edit in Tasks/Projects)' : ''}
+                            >
+                              {event.isAllDay ? 'All Day' : new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(event.startTime))} {event.title}
+                            </div>
+                            {!event.readOnly && (
+                              <button
+                                onClick={async (e) => { e.stopPropagation(); if(await confirm('Delete event?')) deleteEventMutation.mutate(event.id); }}
+                                className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/event:opacity-100 p-1 text-red-500 hover:bg-red-500/20 rounded bg-background shadow"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

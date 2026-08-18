@@ -1,7 +1,7 @@
 'use client';
 
 import { useTheme } from 'next-themes';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Moon, Sun, Monitor, User, Lock, Award, Shield, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import api from '@/lib/api';
@@ -26,6 +26,7 @@ export default function SettingsPage() {
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const logoutTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -35,6 +36,10 @@ export default function SettingsPage() {
       setBio(user.bio || '');
     }
   }, [user]);
+
+  useEffect(() => () => {
+    if (logoutTimerRef.current) clearTimeout(logoutTimerRef.current);
+  }, []);
 
   if (!mounted || !user) {
     return (
@@ -82,7 +87,8 @@ export default function SettingsPage() {
         setCurrentPassword('');
         setNextPassword('');
         setConfirmPassword('');
-        setTimeout(() => {
+        logoutTimerRef.current = window.setTimeout(() => {
+          logoutTimerRef.current = null;
           logout();
         }, 2500);
       }
@@ -94,7 +100,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-background p-8 relative overflow-y-auto">
+    <div className="flex min-h-full w-full flex-col bg-background p-4 relative overflow-y-auto sm:p-8 lg:h-full">
       <header className="mb-8 z-10 shrink-0">
         <h1 className="text-3xl font-extrabold text-foreground tracking-tight">Settings</h1>
         <p className="text-muted mt-1.5 text-sm">Manage your account workspace, profile preferences, and security settings.</p>

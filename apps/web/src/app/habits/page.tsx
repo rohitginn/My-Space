@@ -181,10 +181,10 @@ export default function HabitsPage() {
   const unlockedTypes = new Set(unlockedBadges.map(b => b.type));
 
   return (
-    <div className="flex flex-col h-full w-full bg-background p-8 relative overflow-hidden">
+    <div className="flex min-h-full w-full flex-col bg-background p-4 relative overflow-y-auto sm:p-8 lg:h-full lg:overflow-hidden">
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-accent-green/5 rounded-full blur-3xl pointer-events-none"></div>
 
-      <header className="flex justify-between items-end mb-8 z-10 shrink-0">
+      <header className="mb-6 flex flex-col items-start gap-4 z-10 shrink-0 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight flex items-center gap-3">
             <Activity className="text-accent-green" size={28} />
@@ -192,7 +192,7 @@ export default function HabitsPage() {
           </h1>
           <p className="text-muted mt-2">Build healthy routines, apply templates, and unlock badges.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:gap-3">
           <button 
             onClick={() => setRoutineModalOpen(true)}
             className="border border-border hover:bg-surface-hover text-foreground px-4 py-2 rounded-xl font-medium transition-colors flex items-center gap-2"
@@ -210,7 +210,7 @@ export default function HabitsPage() {
       </header>
 
       {/* Tabs */}
-      <div className="flex border-b border-border mb-8 z-10">
+      <div className="flex overflow-x-auto border-b border-border mb-8 z-10">
         <button
           onClick={() => setActiveTab('habits')}
           className={`px-6 py-3 font-semibold text-sm border-b-2 transition-all ${activeTab === 'habits' ? 'border-accent-green text-accent-green' : 'border-transparent text-muted hover:text-foreground'}`}

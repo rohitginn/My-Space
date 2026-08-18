@@ -259,7 +259,7 @@ export default function KanbanPage() {
 
   if (isLoadingBoards || (activeBoardId && isLoadingBoard)) {
     return (
-      <div className="flex h-full w-full items-center justify-center text-muted">
+      <div className="flex h-full min-h-full w-full items-center justify-center text-muted">
         <Loader2 size={32} className="animate-spin mr-3" />
         Loading Board...
       </div>
@@ -268,17 +268,54 @@ export default function KanbanPage() {
 
   if (!boardsData || boardsData.length === 0) {
     return (
-      <div className="flex flex-col h-full w-full items-center justify-center text-muted gap-4">
-        <p className="text-lg">You don't have any projects yet.</p>
-        <button 
-          onClick={() => setBoardModal({isOpen: true, isEdit: false, data: {title: '', description: ''}})}
-          className="bg-accent-blue hover:bg-accent-blue-hover text-white px-5 py-2.5 rounded-xl font-medium transition-colors shadow-lg shadow-accent-blue/20 flex items-center gap-2"
-        >
-          <Plus size={18} />
-          Create First Project
-        </button>
-        {/* Modals are rendered at the bottom, so they still work here */}
-      </div>
+      <>
+        <div className="flex h-full min-h-full w-full flex-col items-center justify-center gap-4 text-muted">
+          <p className="text-lg">You don't have any projects yet.</p>
+          <button
+            onClick={() => setBoardModal({ isOpen: true, isEdit: false, data: { title: '', description: '' } })}
+            className="flex items-center gap-2 rounded-xl bg-accent-blue px-5 py-2.5 font-medium text-white transition-colors hover:bg-accent-blue-hover"
+          >
+            <Plus size={18} />
+            Create First Project
+          </button>
+        </div>
+
+        <Modal isOpen={boardModal.isOpen} onClose={() => setBoardModal({ ...boardModal, isOpen: false })} title="New Project">
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-muted" htmlFor="empty-project-name">Project Name</label>
+              <input
+                id="empty-project-name"
+                type="text"
+                value={boardModal.data?.title || ''}
+                onChange={(event) => setBoardModal({ ...boardModal, data: { ...boardModal.data, title: event.target.value } })}
+                className="w-full rounded-lg border border-border bg-surface px-4 py-2 text-foreground outline-none focus:border-accent-blue"
+                placeholder="e.g. Q3 Marketing Campaign"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-muted" htmlFor="empty-project-description">Description (Optional)</label>
+              <textarea
+                id="empty-project-description"
+                value={boardModal.data?.description || ''}
+                onChange={(event) => setBoardModal({ ...boardModal, data: { ...boardModal.data, description: event.target.value } })}
+                className="min-h-[80px] w-full rounded-lg border border-border bg-surface px-4 py-2 text-foreground outline-none focus:border-accent-blue"
+                placeholder="Brief description of the project"
+              />
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button onClick={() => setBoardModal({ ...boardModal, isOpen: false })} className="px-4 py-2 font-medium text-muted hover:text-foreground">Cancel</button>
+              <button
+                onClick={() => saveBoardMutation.mutate({ title: boardModal.data.title, description: boardModal.data.description })}
+                disabled={saveBoardMutation.isPending || !boardModal.data?.title}
+                className="rounded-lg bg-accent-blue px-6 py-2 font-medium text-white transition-colors hover:bg-accent-blue-hover disabled:opacity-50"
+              >
+                {saveBoardMutation.isPending ? 'Saving...' : 'Create Project'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      </>
     );
   }
 
@@ -402,12 +439,10 @@ export default function KanbanPage() {
 
 
   return (
-    <div className="flex flex-col h-full w-full bg-background p-8 relative overflow-hidden">
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-accent-blue/5 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-accent-green/5 rounded-full blur-3xl pointer-events-none"></div>
+    <div className="relative flex min-h-full w-full flex-col bg-background p-4 sm:p-8 lg:h-full lg:overflow-hidden">
 
       {/* Header */}
-      <header className="flex justify-between items-end mb-8 z-10 shrink-0">
+      <header className="mb-6 flex flex-col items-start gap-4 z-10 shrink-0 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-foreground tracking-tight">{board?.title || 'Project'}</h1>
@@ -440,7 +475,7 @@ export default function KanbanPage() {
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-3">
 
           <select 
             value={activeBoardId || ''}

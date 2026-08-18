@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Play, Pause, RotateCcw, Volume2, VolumeX, Maximize, Minimize, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -30,6 +30,8 @@ export default function FocusRoom() {
   
   const containerRef = useRef<HTMLDivElement>(null);
   const playerRef = useRef<any>(null);
+  const volumeRef = useRef(volume);
+  const completionScheduledRef = useRef(false);
 
   // Fetch active tasks to select one for focus
   const { data: tasks } = useQuery({
@@ -43,37 +45,53 @@ export default function FocusRoom() {
 
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
+
   // Load YouTube Player API and control the player
   useEffect(() => {
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-    }
+    let disposed = false;
+    const previousReadyHandler = window.onYouTubeIframeAPIReady;
 
     const initPlayer = () => {
+      if (disposed || playerRef.current || !window.YT?.Player) return;
+
       playerRef.current = new window.YT.Player('focus-youtube-iframe', {
         events: {
           onReady: (event: any) => {
-            event.target.setVolume(volume);
-            if (isActive) {
-              event.target.playVideo();
-            } else {
-              event.target.pauseVideo();
-            }
-          }
-        }
+            event.target.setVolume(volumeRef.current);
+          },
+        },
       });
     };
 
-    window.onYouTubeIframeAPIReady = () => {
+    const readyHandler = () => {
+      previousReadyHandler?.();
       initPlayer();
     };
 
-    if (window.YT && window.YT.Player) {
+    if (window.YT?.Player) {
       initPlayer();
+    } else {
+      window.onYouTubeIframeAPIReady = readyHandler;
     }
+
+    if (!window.YT?.Player && !document.querySelector('script[src="https://www.youtube.com/iframe_api"]')) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      const firstScriptTag = document.getElementsByTagName('script')[0];
+      firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    return () => {
+      disposed = true;
+      if (window.onYouTubeIframeAPIReady === readyHandler) {
+        window.onYouTubeIframeAPIReady = previousReadyHandler;
+      }
+      playerRef.current?.destroy?.();
+      playerRef.current = null;
+    };
   }, []);
 
   // Update volume when slider changes
@@ -95,20 +113,7 @@ export default function FocusRoom() {
     }
   }, [isActive]);
 
-  useEffect(() => {
-    let interval: any = null;
-    if (isActive && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((time) => time - 1);
-      }, 1000);
-    } else if (isActive && timeLeft === 0) {
-      handleComplete();
-      clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [isActive, timeLeft]);
-
-  const handleComplete = async () => {
+  const handleComplete = useCallback(async () => {
     setIsActive(false);
     confetti({
       particleCount: 150,
@@ -118,17 +123,39 @@ export default function FocusRoom() {
     });
 
     if (!isBreak) {
-      // Award XP for finishing a pomodoro
       await api.patch('/users/me/xp', { amount: 15 }).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
       await alert('Focus session complete! You earned +15 XP.');
       setIsBreak(true);
-      setTimeLeft(5 * 60); // 5 min break
+      setTimeLeft(5 * 60);
     } else {
       setIsBreak(false);
       setTimeLeft(25 * 60);
     }
-  };
+  }, [alert, isBreak, queryClient]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | undefined;
+    if (isActive && timeLeft > 0) {
+      interval = setInterval(() => {
+        setTimeLeft((time) => time - 1);
+      }, 1000);
+    }
+    if (!isActive) completionScheduledRef.current = false;
+    if (isActive && timeLeft === 0 && !completionScheduledRef.current) {
+      completionScheduledRef.current = true;
+      const completionTimer = window.setTimeout(() => {
+        void handleComplete();
+      }, 0);
+      return () => {
+        if (interval) clearInterval(interval);
+        window.clearTimeout(completionTimer);
+      };
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [handleComplete, isActive, timeLeft]);
 
   const toggleTimer = () => setIsActive(!isActive);
   
@@ -139,13 +166,19 @@ export default function FocusRoom() {
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      containerRef.current?.requestFullscreen().catch(err => console.error(err));
-      setIsFullscreen(true);
+      containerRef.current?.requestFullscreen().catch((err) => console.error(err));
     } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+      document.exitFullscreen().catch((err) => console.error(err));
     }
   };
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === containerRef.current);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   // Format time (MM:SS)
   const formatTime = (seconds: number) => {
@@ -159,7 +192,7 @@ export default function FocusRoom() {
   return (
     <div 
       ref={containerRef}
-      className={`relative w-full transition-all duration-700 ${isFullscreen ? 'h-screen fixed inset-0 z-50 bg-background flex items-center justify-center' : 'h-full p-8 max-w-5xl mx-auto overflow-y-auto'}`}
+      className={`relative min-h-full w-full transition-all duration-700 ${isFullscreen ? 'min-h-[100dvh] fixed inset-0 z-50 bg-background flex items-center justify-center' : 'p-4 sm:p-8 max-w-5xl mx-auto overflow-y-auto'}`}
     >
       {/* Ambient Video Background (Hidden visually, audio only) */}
       <div className="w-0 h-0 opacity-0 pointer-events-none absolute">
@@ -172,11 +205,11 @@ export default function FocusRoom() {
         ></iframe>
       </div>
 
-      <div className={`relative z-10 w-full max-w-2xl mx-auto flex flex-col items-center justify-center h-full ${isFullscreen ? 'scale-125' : ''}`}>
+      <div className={`relative z-10 w-full max-w-2xl mx-auto flex flex-col items-center justify-center min-h-full ${isFullscreen ? 'scale-125' : ''}`}>
         
-        <header className="mb-12 text-center w-full">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground mb-2">Focus Room</h1>
-          <p className="text-muted text-lg">Deep work mode. Drop in and get it done.</p>
+        <header className="mb-8 text-center w-full sm:mb-12">
+          <h1 className="mb-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Focus Room</h1>
+          <p className="text-base text-muted sm:text-lg">Deep work mode. Drop in and get it done.</p>
         </header>
 
         {/* Task Selector */}
@@ -201,7 +234,7 @@ export default function FocusRoom() {
         </div>
 
         {/* Timer Circle */}
-        <div className="relative w-80 h-80 flex items-center justify-center mb-12">
+        <div className="relative mb-8 flex h-[min(78vw,20rem)] w-[min(78vw,20rem)] items-center justify-center sm:mb-12">
           <svg className="absolute inset-0 w-full h-full transform -rotate-90">
             <circle cx="160" cy="160" r="150" className="stroke-surface-glass" strokeWidth="8" fill="transparent" />
             <circle 
@@ -214,7 +247,7 @@ export default function FocusRoom() {
             />
           </svg>
           <div className="text-center">
-            <div className={`text-7xl font-bold font-mono tracking-tighter ${isBreak ? 'text-accent-green' : 'text-accent-blue'}`}>
+            <div className={`text-[clamp(3.4rem,16vw,4.5rem)] font-bold font-mono tracking-tighter ${isBreak ? 'text-accent-green' : 'text-accent-blue'}`}>
               {formatTime(timeLeft)}
             </div>
             <div className="text-muted mt-2 text-sm uppercase tracking-widest font-bold">
@@ -224,7 +257,7 @@ export default function FocusRoom() {
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-6 bg-surface/80 glass rounded-full px-8 py-4 border border-border shadow-2xl">
+        <div className="flex items-center gap-4 bg-surface/80 glass rounded-full px-5 py-3 border border-border shadow-2xl sm:gap-6 sm:px-8 sm:py-4">
           <div 
             className="flex items-center gap-2 text-muted hover:text-foreground cursor-pointer py-2"
             onMouseEnter={() => setShowVolumeSlider(true)}

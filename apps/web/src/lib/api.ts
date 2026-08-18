@@ -1,6 +1,12 @@
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const publicRoutes = new Set(['/', '/login', '/register', '/forgot-password', '/reset-password']);
+const isPublicPath = (path: string) => publicRoutes.has(path) || path.startsWith('/co-space/join/');
+
+const isPublicRoute = () => (
+  typeof window !== 'undefined' && isPublicPath(window.location.pathname)
+);
 
 const api = axios.create({
   baseURL: API_URL,
@@ -37,13 +43,13 @@ api.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
           return api(originalRequest);
         }
-      } catch (refreshError) {
+      } catch {
         localStorage.removeItem('accessToken');
         if (
           typeof window !== 'undefined' &&
-          !['/login', '/register'].includes(window.location.pathname)
+          !isPublicPath(window.location.pathname)
         ) {
-          window.location.href = '/login';
+          window.location.replace('/login');
         }
       }
     }

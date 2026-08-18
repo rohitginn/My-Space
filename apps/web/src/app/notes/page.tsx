@@ -160,10 +160,10 @@ export default function NotesPage() {
   };
 
   return (
-    <div className="flex h-full w-full bg-background overflow-hidden">
+    <div className="flex h-full min-h-full w-full flex-col overflow-y-auto bg-background md:flex-row md:overflow-hidden">
       
       {/* Notes Sidebar */}
-      <div className="w-80 h-full border-r border-border glass flex flex-col shrink-0 z-20">
+      <div className="z-20 flex h-auto max-h-[44dvh] w-full min-h-0 shrink-0 flex-col border-b border-border bg-surface md:h-full md:max-h-none md:w-80 md:border-b-0 md:border-r">
         <div className="p-4 border-b border-border">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-foreground">Notes</h2>
@@ -186,7 +186,7 @@ export default function NotesPage() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
           {/* Folders Section */}
           <div className="mb-6 px-2 mt-2">
             <div className="flex items-center justify-between mb-3">
@@ -267,14 +267,11 @@ export default function NotesPage() {
       </div>
 
       {/* Main Editor Area */}
-      <div className="flex-1 h-full flex flex-col relative">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-accent-blue/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-        <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-accent-green/5 rounded-full blur-3xl pointer-events-none"></div>
-
+      <div className="flex min-h-[56dvh] flex-1 flex-col relative md:h-full md:min-h-0">
         {activeNote ? (
           <>
             {/* Editor Toolbar */}
-            <div className="h-14 border-b border-border flex items-center justify-between px-6 shrink-0 glass z-10">
+            <div className="min-h-14 border-b border-border flex flex-wrap items-center justify-between gap-2 px-3 py-2 shrink-0 glass z-10 sm:px-6">
               <div className="flex items-center gap-1">
                 <button 
                   onClick={() => document.execCommand('bold', false)}
@@ -318,13 +315,13 @@ export default function NotesPage() {
             </div>
 
             {/* Editor Content */}
-            <div className="flex-1 overflow-y-auto p-12 z-10 relative">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-12 z-10 relative">
               <div className="max-w-3xl mx-auto">
                 <input 
                   type="text" 
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="text-4xl font-bold text-foreground bg-transparent border-none outline-none w-full mb-8 placeholder:text-muted/30 focus:ring-0"
+                  className="mb-6 w-full bg-transparent text-2xl font-bold text-foreground border-none outline-none placeholder:text-muted/30 focus:ring-0 sm:mb-8 sm:text-4xl"
                   placeholder="Note Title"
                 />
                 

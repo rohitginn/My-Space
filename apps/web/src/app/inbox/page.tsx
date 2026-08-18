@@ -123,10 +123,10 @@ export default function InboxPage() {
   const processedItems = items?.filter(item => item.isProcessed) || [];
 
   return (
-    <div className="flex flex-col h-full w-full bg-background p-8 relative overflow-hidden">
+    <div className="flex min-h-full w-full flex-col bg-background p-4 relative overflow-y-auto sm:p-8 lg:h-full lg:overflow-hidden">
       <div className="absolute top-0 right-1/4 w-96 h-96 bg-accent-blue/5 rounded-full blur-3xl pointer-events-none"></div>
 
-      <header className="flex justify-between items-end mb-8 z-10 shrink-0">
+      <header className="mb-6 flex flex-col items-start gap-3 z-10 shrink-0 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground tracking-tight flex items-center gap-3">
             <Inbox className="text-accent-blue" size={28} />
@@ -141,7 +141,7 @@ export default function InboxPage() {
         <QuickCapture placeholder="Capture any thought or idea instantly..." />
       </div>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 overflow-hidden z-10">
+      <div className="grid min-h-0 flex-1 grid-cols-1 gap-8 overflow-visible z-10 lg:grid-cols-3 lg:overflow-hidden">
         {/* Inbox Items Column */}
         <div className="lg:col-span-2 flex flex-col h-full overflow-hidden">
           <div className="flex justify-between items-center mb-4 shrink-0">

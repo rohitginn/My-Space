@@ -82,6 +82,44 @@ const runMigrate = async () => {
     );
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS "integration_oauth_states" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "state_hash" varchar(64) NOT NULL UNIQUE,
+      "workspace_id" uuid NOT NULL REFERENCES "workspaces"("id") ON DELETE CASCADE,
+      "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+      "provider" varchar(30) NOT NULL,
+      "expires_at" timestamp with time zone NOT NULL,
+      "used_at" timestamp with time zone,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS "workspace_integrations" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+      "workspace_id" uuid NOT NULL REFERENCES "workspaces"("id") ON DELETE CASCADE,
+      "provider" varchar(30) NOT NULL,
+      "status" varchar(20) DEFAULT 'connected' NOT NULL,
+      "installed_by_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+      "external_account_id" varchar(255),
+      "external_account_name" varchar(255),
+      "access_token_encrypted" text NOT NULL,
+      "refresh_token_encrypted" text,
+      "token_expires_at" timestamp with time zone,
+      "scopes" jsonb DEFAULT '[]'::jsonb NOT NULL,
+      "metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
+      "last_synced_at" timestamp with time zone,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+  `;
+
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS "workspace_integrations_provider_unique"
+    ON "workspace_integrations" ("workspace_id", "provider");
+  `;
+
   console.log('Fixes applied successfully!');
   await sql.end();
   process.exit(0);

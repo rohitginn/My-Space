@@ -189,7 +189,7 @@ export default function Home() {
       variants={staggerParent}
       initial="initial"
       animate="animate"
-      className="p-8 max-w-6xl mx-auto w-full overflow-y-auto"
+      className="w-full max-w-6xl mx-auto overflow-y-auto p-4 sm:p-8"
     >
       {/* Header Panel */}
       <motion.header variants={fadeSlideUpItem} className="mb-10 mt-4 flex flex-col md:flex-row md:items-center justify-between gap-6">

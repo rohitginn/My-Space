@@ -5,6 +5,7 @@ import { notes } from '../../db/schema/notes.js';
 import { AppError } from '../../utils/AppError.js';
 import { getOffset } from '../../utils/pagination.js';
 import { sanitizeHtml } from '../../utils/sanitize.js';
+import { getMembership, requireRole } from '../workspaces/workspaces.service.js';
 
 type ListQuery = {
   folderId?: string;
@@ -29,7 +30,8 @@ export async function listNotes(userId: string, query: ListQuery) {
     .offset(getOffset(query.page, query.limit));
 }
 
-export async function listWorkspaceNotes(workspaceId: string) {
+export async function listWorkspaceNotes(userId: string, workspaceId: string) {
+  await getMembership(userId, workspaceId);
   return db
     .select()
     .from(notes)
@@ -38,6 +40,7 @@ export async function listWorkspaceNotes(workspaceId: string) {
 }
 
 export async function createWorkspaceNote(userId: string, workspaceId: string, input: { title: string; content?: string }) {
+  await requireRole(userId, workspaceId, ['owner', 'admin', 'member']);
   const [created] = await db
     .insert(notes)
     .values({
@@ -50,9 +53,19 @@ export async function createWorkspaceNote(userId: string, workspaceId: string, i
   return created;
 }
 
-export async function getNote(_userId: string, id: string) {
+async function authorizeNote(userId: string, note: typeof notes.$inferSelect, write = false) {
+  if (note.workspaceId) {
+    const membership = await getMembership(userId, note.workspaceId);
+    if (write && membership.role === 'viewer') throw new AppError('Workspace is read-only for this member', 403, 'WORKSPACE_READ_ONLY');
+    return;
+  }
+  if (note.userId !== userId) throw new AppError('Note not found', 404, 'NOTE_NOT_FOUND');
+}
+
+export async function getNote(userId: string, id: string) {
   const note = await db.query.notes.findFirst({ where: eq(notes.id, id) });
   if (!note) throw new AppError('Note not found', 404, 'NOTE_NOT_FOUND');
+  await authorizeNote(userId, note);
   return note;
 }
 
@@ -64,10 +77,13 @@ export async function createNote(userId: string, input: typeof notes.$inferInser
   return created;
 }
 
-export async function updateNote(_userId: string, id: string, input: Partial<typeof notes.$inferInsert>) {
+export async function updateNote(userId: string, id: string, input: Partial<typeof notes.$inferInsert>) {
+  const existing = await getNote(userId, id);
+  await authorizeNote(userId, existing, true);
+  const { content, ...rest } = input;
   const [updated] = await db
     .update(notes)
-    .set({ ...input, content: sanitizeHtml(input.content), updatedAt: new Date() })
+    .set({ ...rest, ...(content === undefined ? {} : { content: sanitizeHtml(content) }), updatedAt: new Date() })
     .where(eq(notes.id, id))
     .returning();
   if (!updated) throw new AppError('Note not found', 404, 'NOTE_NOT_FOUND');

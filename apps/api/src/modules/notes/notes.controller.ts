@@ -12,7 +12,7 @@ export const listNotes = asyncHandler(async (req, res) => {
 });
 
 export const listWorkspaceNotes = asyncHandler(async (req, res) => {
-  res.json({ success: true, data: await notesService.listWorkspaceNotes(req.params.workspaceId) });
+  res.json({ success: true, data: await notesService.listWorkspaceNotes(userId(req), req.params.workspaceId) });
 });
 
 export const createWorkspaceNote = asyncHandler(async (req, res) => {

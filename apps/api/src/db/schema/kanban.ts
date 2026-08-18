@@ -27,6 +27,7 @@ export const kanbanCards = pgTable('kanban_cards', {
   id: uuid('id').defaultRandom().primaryKey(),
   columnId: uuid('column_id').notNull().references(() => kanbanColumns.id, { onDelete: 'cascade' }),
   userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
   title: varchar('title', { length: 300 }).notNull(),
   description: text('description'),
   priority: varchar('priority', { length: 10 }).default('medium'),
